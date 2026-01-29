@@ -2,12 +2,11 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Northwind.Portal.Data.Contexts;
 using Northwind.Portal.Data.Repositories;
-using Northwind.Portal.Data.Seed;
-using Northwind.Portal.Data.Services;
 using Northwind.Portal.Domain.DTOs;
 using Northwind.Portal.Domain.Services;
 using Northwind.Portal.Web.Models;
 using Bipins.AI;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -68,6 +67,9 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options =>
 .AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<ApplicationDbContext>();
 
+// Ensure roles are included in claims
+builder.Services.AddScoped<IUserClaimsPrincipalFactory<IdentityUser>, UserClaimsPrincipalFactory<IdentityUser, IdentityRole>>();
+
 // Authorization policies
 builder.Services.AddAuthorization(options =>
 {
@@ -93,11 +95,61 @@ builder.Services.AddScoped<ICartService, Northwind.Portal.Data.Services.CartServ
 var llmOptions = builder.Configuration.GetSection("LLMOptions").Get<LLMOptions>();
 
 // Register Bipins.AI LLM Provider (must be registered before IChatService)
-if (llmOptions != null)
+if (llmOptions != null && !string.IsNullOrEmpty(llmOptions.Provider))
 {
-    // Register ILLMProvider based on provider type
-    // This should be done according to Bipins.AI registration patterns
-    // Example: builder.Services.AddSingleton<Bipins.AI.Providers.ILLMProvider>(...);
+    // Register Bipins.AI services and LLM provider via IBipinsAIBuilder
+    var aiBuilder = builder.Services.AddBipinsAI(_ => { });
+    
+    switch (llmOptions.Provider)
+    {
+        case "OpenAI":
+            aiBuilder.AddOpenAI(options =>
+            {
+                // Read API key from configuration (User Secrets or Environment Variables)
+                // Expected key: "LLMOptions:OpenAI:ApiKey" or "OpenAI:ApiKey"
+                var apiKey = builder.Configuration["LLMOptions:OpenAI:ApiKey"] 
+                    ?? builder.Configuration["OpenAI:ApiKey"] 
+                    ?? string.Empty;
+                options.ApiKey = apiKey;
+            });
+            break;
+            
+        case "Anthropic":
+            aiBuilder.AddAnthropic(options =>
+            {
+                // Read API key from configuration (User Secrets or Environment Variables)
+                // Expected key: "LLMOptions:Anthropic:ApiKey" or "Anthropic:ApiKey"
+                var apiKey = builder.Configuration["LLMOptions:Anthropic:ApiKey"] 
+                    ?? builder.Configuration["Anthropic:ApiKey"] 
+                    ?? string.Empty;
+                options.ApiKey = apiKey;
+            });
+            break;
+            
+        case "AzureOpenAI":
+            aiBuilder.AddAzureOpenAI(options =>
+            {
+                // Read configuration from User Secrets or Environment Variables
+                // Expected keys: "LLMOptions:AzureOpenAI:Endpoint", "LLMOptions:AzureOpenAI:ApiKey", etc.
+                var endpoint = builder.Configuration["LLMOptions:AzureOpenAI:Endpoint"] 
+                    ?? builder.Configuration["AzureOpenAI:Endpoint"] 
+                    ?? string.Empty;
+                var apiKey = builder.Configuration["LLMOptions:AzureOpenAI:ApiKey"] 
+                    ?? builder.Configuration["AzureOpenAI:ApiKey"] 
+                    ?? string.Empty;
+                
+                options.Endpoint = endpoint;
+                options.ApiKey = apiKey;
+                
+                var apiVersion = builder.Configuration["LLMOptions:AzureOpenAI:ApiVersion"] 
+                    ?? builder.Configuration["AzureOpenAI:ApiVersion"];
+                if (!string.IsNullOrEmpty(apiVersion))
+                {
+                    options.ApiVersion = apiVersion;
+                }
+            });
+            break;
+    }
 }
 
 // Register IChatService
