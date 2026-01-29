@@ -1,0 +1,103 @@
+@model Northwind.Portal.Domain.DTOs.PagedResult<Northwind.Portal.Domain.DTOs.ProductDto>
+@{
+    ViewData["Title"] = "Product Catalog";
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <h5 class="mb-0"><i class="fas fa-store me-2"></i>Products</h5>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3 mb-4">
+            <div class="col-md-5">
+                <input type="text" name="searchTerm" class="form-control" placeholder="Search products..." value="@ViewBag.SearchTerm" />
+            </div>
+            <div class="col-md-4">
+                <select name="categoryId" class="form-select">
+                    <option value="">All Categories</option>
+                    @foreach (var category in ViewBag.Categories as IEnumerable<Northwind.Portal.Domain.DTOs.CategoryDto> ?? Enumerable.Empty<Northwind.Portal.Domain.DTOs.CategoryDto>())
+                    {
+                        <option value="@category.CategoryId" selected="@(ViewBag.CategoryId != null && (int)ViewBag.CategoryId == category.CategoryId)">@category.CategoryName</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-search me-1"></i>Filter
+                </button>
+            </div>
+        </form>
+        
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Product Name</th>
+                        <th>Category</th>
+                        <th>Price</th>
+                        <th>Stock</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Items != null && Model.Items.Any())
+                    {
+                        @foreach (var product in Model.Items)
+                        {
+                            <tr>
+                                <td><strong>@product.ProductName</strong></td>
+                                <td>@product.CategoryName</td>
+                                <td>@product.UnitPrice?.ToString("C")</td>
+                                <td>
+                                    @if (product.UnitsInStock > 0)
+                                    {
+                                        <span class="badge bg-success">@product.UnitsInStock in stock</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">Out of stock</span>
+                                    }
+                                </td>
+                                <td>
+                                    <a asp-action="Details" asp-route-id="@product.ProductId" class="btn btn-sm btn-primary me-1">
+                                        <i class="fas fa-eye me-1"></i>View
+                                    </a>
+                                    <form asp-controller="Cart" asp-action="Add" method="post" style="display:inline;">
+                                        <input type="hidden" name="productId" value="@product.ProductId" />
+                                        <input type="hidden" name="quantity" value="1" />
+                                        <button type="submit" class="btn btn-sm btn-success">
+                                            <i class="fas fa-cart-plus me-1"></i>Add to Cart
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                                No products found
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        
+        @if (Model.TotalPages > 1)
+        {
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    @for (int i = 1; i <= Model.TotalPages; i++)
+                    {
+                        <li class="page-item @(i == Model.Page ? "active" : "")">
+                            <a class="page-link" href="?page=@i&searchTerm=@ViewBag.SearchTerm&categoryId=@ViewBag.CategoryId">@i</a>
+                        </li>
+                    }
+                </ul>
+            </nav>
+        }
+    </div>
+</div>

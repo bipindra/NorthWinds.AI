@@ -1,0 +1,78 @@
+@model Northwind.Portal.Web.ViewModels.CheckoutViewModel
+@{
+    ViewData["Title"] = "Checkout";
+}
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="fas fa-credit-card me-2"></i>Shipping Information</h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="Process" method="post">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label asp-for="ShipName" class="form-label">Ship To Name *</label>
+                            <input asp-for="ShipName" class="form-control" />
+                            <span asp-validation-for="ShipName" class="text-danger small"></span>
+                        </div>
+                        
+                        <div class="col-md-12">
+                            <label asp-for="ShipAddress" class="form-label">Address *</label>
+                            <input asp-for="ShipAddress" class="form-control" />
+                            <span asp-validation-for="ShipAddress" class="text-danger small"></span>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label asp-for="ShipCity" class="form-label">City *</label>
+                            <input asp-for="ShipCity" class="form-control" />
+                            <span asp-validation-for="ShipCity" class="text-danger small"></span>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label asp-for="ShipRegion" class="form-label">Region</label>
+                            <input asp-for="ShipRegion" class="form-control" />
+                            <span asp-validation-for="ShipRegion" class="text-danger small"></span>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label asp-for="ShipPostalCode" class="form-label">Postal Code *</label>
+                            <input asp-for="ShipPostalCode" class="form-control" />
+                            <span asp-validation-for="ShipPostalCode" class="text-danger small"></span>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label asp-for="ShipCountry" class="form-label">Country *</label>
+                            <input asp-for="ShipCountry" class="form-control" />
+                            <span asp-validation-for="ShipCountry" class="text-danger small"></span>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label asp-for="PoNumber" class="form-label">PO Number</label>
+                            <input asp-for="PoNumber" class="form-control" />
+                            <span asp-validation-for="PoNumber" class="text-danger small"></span>
+                        </div>
+                        
+                        <div class="col-md-12">
+                            <label asp-for="Notes" class="form-label">Order Notes</label>
+                            <textarea asp-for="Notes" class="form-control" rows="3"></textarea>
+                            <span asp-validation-for="Notes" class="text-danger small"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 d-flex gap-2">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="fas fa-check me-2"></i>Place Order
+                        </button>
+                        <a asp-controller="Cart" asp-action="Index" class="btn btn-secondary btn-lg">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Cart
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

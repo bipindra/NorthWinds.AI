@@ -1,0 +1,82 @@
+@model Northwind.Portal.Domain.DTOs.ProductDto
+@{
+    ViewData["Title"] = Model.ProductName;
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <h5 class="mb-0"><i class="fas fa-box me-2"></i>@Model.ProductName</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-8">
+                <dl class="row">
+                    <dt class="col-sm-4">Category</dt>
+                    <dd class="col-sm-8">@Model.CategoryName</dd>
+                    <dt class="col-sm-4">Supplier</dt>
+                    <dd class="col-sm-8">@Model.SupplierName</dd>
+                    <dt class="col-sm-4">Price</dt>
+                    <dd class="col-sm-8"><strong class="text-primary fs-5">@Model.UnitPrice?.ToString("C")</strong></dd>
+                    <dt class="col-sm-4">Quantity Per Unit</dt>
+                    <dd class="col-sm-8">@Model.QuantityPerUnit</dd>
+                    <dt class="col-sm-4">Units In Stock</dt>
+                    <dd class="col-sm-8">
+                        @if (Model.UnitsInStock > 0)
+                        {
+                            <span class="badge bg-success">@Model.UnitsInStock in stock</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger">Out of stock</span>
+                        }
+                    </dd>
+                    @if (Model.Discontinued)
+                    {
+                        <dt class="col-sm-4">Status</dt>
+                        <dd class="col-sm-8"><span class="badge bg-danger">Discontinued</span></dd>
+                    }
+                </dl>
+            </div>
+        </div>
+
+        @if (!Model.Discontinued && Model.UnitsInStock > 0)
+        {
+            <div class="card-footer bg-white border-top mt-4">
+                <form asp-controller="Cart" asp-action="Add" method="post">
+                    <input type="hidden" name="productId" value="@Model.ProductId" />
+                    <div class="row g-3 align-items-end">
+                        <div class="col-auto">
+                            <label class="form-label">Quantity:</label>
+                            <input type="number" name="quantity" value="1" min="1" max="@Model.UnitsInStock" class="form-control" style="width: 100px;" />
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-cart-plus me-2"></i>Add to Cart
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-warning mt-4">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                @if (Model.Discontinued)
+                {
+                    <text>This product has been discontinued.</text>
+                }
+                else
+                {
+                    <text>This product is currently out of stock.</text>
+                }
+            </div>
+        }
+
+        <div class="mt-4">
+            <a asp-action="Index" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Catalog
+            </a>
+        </div>
+    </div>
+</div>

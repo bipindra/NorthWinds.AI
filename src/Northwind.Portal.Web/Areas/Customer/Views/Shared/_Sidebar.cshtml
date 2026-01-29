@@ -1,0 +1,51 @@
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <a href="~/" class="sidebar-logo">
+            <i class="fas fa-shopping-bag"></i>
+            <span>Customer Portal</span>
+        </a>
+    </div>
+    
+    <nav class="sidebar-nav">
+        <ul class="sidebar-menu">
+            <li class="sidebar-menu-item">
+                <a asp-area="Customer" asp-controller="Catalog" asp-action="Index" class="sidebar-menu-link">
+                    <i class="fas fa-store"></i>
+                    <span>Catalog</span>
+                </a>
+            </li>
+            <li class="sidebar-menu-item">
+                <a asp-area="Customer" asp-controller="Cart" asp-action="Index" class="sidebar-menu-link">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span>Cart</span>
+                </a>
+            </li>
+            <li class="sidebar-menu-item">
+                <a asp-area="Customer" asp-controller="Orders" asp-action="Index" class="sidebar-menu-link">
+                    <i class="fas fa-receipt"></i>
+                    <span>My Orders</span>
+                </a>
+            </li>
+            <li class="sidebar-menu-item">
+                <a asp-area="Customer" asp-controller="Chat" asp-action="Index" class="sidebar-menu-link">
+                    <i class="fas fa-comments"></i>
+                    <span>AI Chat</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</aside>
+
+<script>
+    // Highlight active menu item
+    document.addEventListener('DOMContentLoaded', function() {
+        const currentPath = window.location.pathname;
+        const menuLinks = document.querySelectorAll('.sidebar-menu-link');
+        
+        menuLinks.forEach(link => {
+            if (link.getAttribute('href') === currentPath || currentPath.startsWith(link.getAttribute('href'))) {
+                link.classList.add('active');
+            }
+        });
+    });
+</script>

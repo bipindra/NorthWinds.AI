@@ -1,0 +1,60 @@
+<nav class="top-navbar">
+    <div class="navbar-content">
+        <div class="d-flex align-items-center">
+            <button class="btn btn-link d-md-none me-3" id="sidebarToggle" type="button">
+                <i class="fas fa-bars"></i>
+            </button>
+            <a href="~/" class="navbar-brand">
+                <i class="fas fa-cog me-2"></i>
+                Admin Portal
+            </a>
+        </div>
+        
+        <div class="navbar-actions">
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <div class="dropdown">
+                    <button class="btn btn-link user-menu p-0" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <div class="user-info me-2">
+                            <div class="user-name">@User.Identity.Name</div>
+                            <div class="user-role">
+                                @{
+                                    var userRoles = ((System.Security.Claims.ClaimsIdentity)User.Identity).Claims
+                                        .Where(c => c.Type == System.Security.Claims.ClaimTypes.Role)
+                                        .Select(c => c.Value);
+                                }
+                                @string.Join(", ", userRoles)
+                            </div>
+                        </div>
+                        <div class="user-avatar">
+                            @User.Identity.Name?.Substring(0, 1).ToUpper()
+                        </div>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-lg" style="min-width: 200px;">
+                        <li>
+                            <div class="dropdown-item-text">
+                                <div class="fw-bold">@User.Identity.Name</div>
+                                <small class="text-muted">@string.Join(", ", userRoles)</small>
+                            </div>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <form asp-area="" asp-controller="Account" asp-action="Logout" method="post" class="m-0">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="dropdown-item text-danger">
+                                    <i class="fas fa-sign-out-alt me-2"></i>Sign Out
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+            }
+            else
+            {
+                <a asp-controller="Account" asp-action="Login" class="btn btn-primary">
+                    <i class="fas fa-sign-in-alt me-2"></i>Login
+                </a>
+            }
+        </div>
+    </div>
+</nav>

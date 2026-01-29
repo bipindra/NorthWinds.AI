@@ -1,0 +1,180 @@
+@model Northwind.Portal.Domain.DTOs.OrderDto
+@using Northwind.Portal.Domain.Enums
+@{
+    ViewData["Title"] = "Order Details";
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <h5 class="mb-0"><i class="fas fa-receipt me-2"></i>Order #@Model.OrderId</h5>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <h6 class="text-muted mb-3">Customer Information</h6>
+                <dl class="row">
+                    <dt class="col-sm-4">Customer</dt>
+                    <dd class="col-sm-8">@Model.CustomerName (@Model.CustomerId)</dd>
+                    <dt class="col-sm-4">Order Date</dt>
+                    <dd class="col-sm-8">@Model.OrderDate?.ToString("MMM dd, yyyy")</dd>
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8">
+                        @{
+                            var statusBadgeClass = Model.CurrentStatus switch
+                            {
+                                OrderPortalStatus.Submitted => "bg-info",
+                                OrderPortalStatus.PendingApproval => "bg-warning",
+                                OrderPortalStatus.Approved => "bg-success",
+                                OrderPortalStatus.Picking => "bg-primary",
+                                OrderPortalStatus.Shipped => "bg-success",
+                                OrderPortalStatus.Cancelled => "bg-danger",
+                                OrderPortalStatus.Rejected => "bg-danger",
+                                _ => "bg-secondary"
+                            };
+                        }
+                        <span class="badge @statusBadgeClass">@Model.CurrentStatus</span>
+                    </dd>
+                </dl>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-muted mb-3">Shipping Information</h6>
+                <dl class="row">
+                    <dt class="col-sm-4">Ship To</dt>
+                    <dd class="col-sm-8">@Model.ShipName</dd>
+                    <dt class="col-sm-4">Address</dt>
+                    <dd class="col-sm-8">@Model.ShipAddress, @Model.ShipCity, @Model.ShipCountry</dd>
+                    @if (!string.IsNullOrEmpty(Model.TrackingNumber))
+                    {
+                        <dt class="col-sm-4">Tracking</dt>
+                        <dd class="col-sm-8">
+                            <a href="#" class="text-decoration-none">@Model.TrackingNumber</a>
+                        </dd>
+                    }
+                </dl>
+            </div>
+        </div>
+
+        <h6 class="text-muted mb-3">Order Items</h6>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Quantity</th>
+                        <th>Unit Price</th>
+                        <th>Discount</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.OrderDetails)
+                    {
+                        <tr>
+                            <td>@item.ProductName</td>
+                            <td>@item.Quantity</td>
+                            <td>@item.UnitPrice.ToString("C")</td>
+                            <td>@(item.Discount * 100)%</td>
+                            <td><strong>@item.LineTotal.ToString("C")</strong></td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <th colspan="4" class="text-end">Subtotal</th>
+                        <th>@Model.SubTotal.ToString("C")</th>
+                    </tr>
+                    <tr>
+                        <th colspan="4" class="text-end">Freight</th>
+                        <th>@((Model.Freight ?? 0).ToString("C"))</th>
+                    </tr>
+                    <tr>
+                        <th colspan="4" class="text-end">Total</th>
+                        <th>@Model.Total.ToString("C")</th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        @if (Model.StatusHistory != null && Model.StatusHistory.Any())
+        {
+            <h6 class="text-muted mb-3 mt-4">Status History</h6>
+            <div class="list-group">
+                @foreach (var history in Model.StatusHistory)
+                {
+                    <div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">
+                                @{
+                                    var historyStatusClass = history.Status switch
+                                    {
+                                        OrderPortalStatus.Submitted => "bg-info",
+                                        OrderPortalStatus.PendingApproval => "bg-warning",
+                                        OrderPortalStatus.Approved => "bg-success",
+                                        OrderPortalStatus.Picking => "bg-primary",
+                                        OrderPortalStatus.Shipped => "bg-success",
+                                        OrderPortalStatus.Cancelled => "bg-danger",
+                                        OrderPortalStatus.Rejected => "bg-danger",
+                                        _ => "bg-secondary"
+                                    };
+                                }
+                                <span class="badge @historyStatusClass me-2">@history.Status</span>
+                                @if (!string.IsNullOrEmpty(history.Comment))
+                                {
+                                    <span>@history.Comment</span>
+                                }
+                            </h6>
+                            <small class="text-muted">
+                                <i class="fas fa-clock me-1"></i>@history.ChangedAt.ToString("MMM dd, yyyy HH:mm")
+                            </small>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="card-footer bg-white border-top mt-4">
+            <div class="d-flex gap-2">
+                @if (Model.CurrentStatus == OrderPortalStatus.Submitted || Model.CurrentStatus == OrderPortalStatus.PendingApproval)
+                {
+                    <form asp-action="Approve" method="post" style="display:inline;">
+                        <input type="hidden" name="id" value="@Model.OrderId" />
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-check me-2"></i>Approve
+                        </button>
+                    </form>
+                }
+                @if (Model.CurrentStatus == OrderPortalStatus.Approved)
+                {
+                    <form asp-action="MoveToPicking" method="post" style="display:inline;">
+                        <input type="hidden" name="id" value="@Model.OrderId" />
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-box me-2"></i>Move to Picking
+                        </button>
+                    </form>
+                }
+                @if (Model.CurrentStatus == OrderPortalStatus.Picking)
+                {
+                    <form asp-action="MarkShipped" method="post" style="display:inline;">
+                        <input type="hidden" name="id" value="@Model.OrderId" />
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-truck me-2"></i>Mark as Shipped
+                        </button>
+                    </form>
+                }
+                @if (Model.CurrentStatus != OrderPortalStatus.Shipped && Model.CurrentStatus != OrderPortalStatus.Cancelled)
+                {
+                    <form asp-action="Cancel" method="post" style="display:inline;" onsubmit="return confirm('Are you sure you want to cancel this order?');">
+                        <input type="hidden" name="id" value="@Model.OrderId" />
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-times me-2"></i>Cancel Order
+                        </button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+</div>

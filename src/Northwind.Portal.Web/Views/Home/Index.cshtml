@@ -1,0 +1,20 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <h5 class="mb-0"><i class="fas fa-home me-2"></i>Welcome to Northwind Portal</h5>
+    </div>
+    <div class="card-body">
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <p class="mb-2">Welcome, <strong>@User.Identity.Name</strong>!</p>
+            <p class="text-muted">Use the sidebar to navigate to your area.</p>
+        }
+        else
+        {
+            <p>Please <a asp-controller="Account" asp-action="Login" class="btn btn-primary btn-sm">login</a> to access the portal.</p>
+        }
+    </div>
+</div>

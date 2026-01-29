@@ -1,0 +1,76 @@
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <a href="~/" class="sidebar-logo">
+            <i class="fas fa-cog"></i>
+            <span>Admin Portal</span>
+        </a>
+    </div>
+    
+    <nav class="sidebar-nav">
+        <ul class="sidebar-menu">
+            @if (User.IsInRole("AdminOps") || User.IsInRole("AdminFulfillment") || User.IsInRole("SuperAdmin"))
+            {
+                <li class="sidebar-menu-item">
+                    <a asp-area="Admin" 
+                       asp-controller="AdminOrders" 
+                       asp-action="Index" 
+                       class="sidebar-menu-link"
+                       style="cursor: pointer;">
+                        <i class="fas fa-truck"></i>
+                        <span>Orders</span>
+                    </a>
+                </li>
+            }
+            @if (User.IsInRole("AdminCatalog") || User.IsInRole("SuperAdmin"))
+            {
+                <li class="sidebar-menu-item">
+                    <a asp-area="Admin" 
+                       asp-controller="Products" 
+                       asp-action="Index" 
+                       class="sidebar-menu-link"
+                       style="cursor: pointer;">
+                        <i class="fas fa-box"></i>
+                        <span>Products</span>
+                    </a>
+                </li>
+            }
+            @if (User.IsInRole("AdminOps") || User.IsInRole("SuperAdmin"))
+            {
+                <li class="sidebar-menu-item">
+                    <a asp-area="Admin" 
+                       asp-controller="Customers" 
+                       asp-action="Index" 
+                       class="sidebar-menu-link"
+                       style="cursor: pointer;">
+                        <i class="fas fa-users"></i>
+                        <span>Customers</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a asp-area="Admin" 
+                       asp-controller="Reports" 
+                       asp-action="Index" 
+                       class="sidebar-menu-link"
+                       style="cursor: pointer;">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Reports</span>
+                    </a>
+                </li>
+            }
+        </ul>
+    </nav>
+</aside>
+
+<script>
+    // Highlight active menu item
+    document.addEventListener('DOMContentLoaded', function() {
+        const currentPath = window.location.pathname;
+        const menuLinks = document.querySelectorAll('.sidebar-menu-link');
+        
+        menuLinks.forEach(link => {
+            if (link.getAttribute('href') === currentPath || currentPath.startsWith(link.getAttribute('href'))) {
+                link.classList.add('active');
+            }
+        });
+    });
+</script>

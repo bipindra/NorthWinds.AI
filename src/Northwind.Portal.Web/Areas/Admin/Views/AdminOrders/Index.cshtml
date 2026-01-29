@@ -1,0 +1,139 @@
+@model IEnumerable<Northwind.Portal.Domain.DTOs.OrderDto>
+@using Northwind.Portal.Domain.Enums
+@{
+    ViewData["Title"] = "Order Queue";
+    var currentStatus = ViewBag.Status as string;
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <h5 class="mb-0"><i class="fas fa-list me-2"></i>Order Queue</h5>
+    </div>
+    <div class="card-body">
+        <ul class="nav nav-tabs mb-4" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link @(string.IsNullOrEmpty(currentStatus) ? "active" : "")" 
+                   asp-area="Admin" 
+                   asp-controller="AdminOrders" 
+                   asp-action="Index"
+                   style="cursor: pointer;">
+                    All
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(currentStatus == "Submitted" ? "active" : "")" 
+                   asp-area="Admin" 
+                   asp-controller="AdminOrders" 
+                   asp-action="Index" 
+                   asp-route-status="Submitted"
+                   style="cursor: pointer;">
+                    Submitted
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(currentStatus == "PendingApproval" ? "active" : "")" 
+                   asp-area="Admin" 
+                   asp-controller="AdminOrders" 
+                   asp-action="Index" 
+                   asp-route-status="PendingApproval"
+                   style="cursor: pointer;">
+                    Pending Approval
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(currentStatus == "Approved" ? "active" : "")" 
+                   asp-area="Admin" 
+                   asp-controller="AdminOrders" 
+                   asp-action="Index" 
+                   asp-route-status="Approved"
+                   style="cursor: pointer;">
+                    Approved
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(currentStatus == "Picking" ? "active" : "")" 
+                   asp-area="Admin" 
+                   asp-controller="AdminOrders" 
+                   asp-action="Index" 
+                   asp-route-status="Picking"
+                   style="cursor: pointer;">
+                    Picking
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(currentStatus == "Shipped" ? "active" : "")" 
+                   asp-area="Admin" 
+                   asp-controller="AdminOrders" 
+                   asp-action="Index" 
+                   asp-route-status="Shipped"
+                   style="cursor: pointer;">
+                    Shipped
+                </a>
+            </li>
+        </ul>
+
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Order ID</th>
+                        <th>Customer</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Total</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model != null && Model.Any())
+                    {
+                        @foreach (var order in Model)
+                        {
+                            <tr>
+                                <td><strong>#@order.OrderId</strong></td>
+                                <td>@order.CustomerName</td>
+                                <td>@order.OrderDate?.ToString("MMM dd, yyyy")</td>
+                                <td>
+                                    @{
+                                        var statusBadgeClass = order.CurrentStatus switch
+                                        {
+                                            OrderPortalStatus.Submitted => "bg-info",
+                                            OrderPortalStatus.PendingApproval => "bg-warning",
+                                            OrderPortalStatus.Approved => "bg-success",
+                                            OrderPortalStatus.Picking => "bg-primary",
+                                            OrderPortalStatus.Shipped => "bg-success",
+                                            OrderPortalStatus.Cancelled => "bg-danger",
+                                            OrderPortalStatus.Rejected => "bg-danger",
+                                            _ => "bg-secondary"
+                                        };
+                                    }
+                                    <span class="badge @statusBadgeClass">@order.CurrentStatus</span>
+                                </td>
+                                <td><strong>@order.Total.ToString("C")</strong></td>
+                                <td>
+                                    <a asp-area="Admin" 
+                                       asp-controller="AdminOrders" 
+                                       asp-action="Details" 
+                                       asp-route-id="@order.OrderId" 
+                                       class="btn btn-sm btn-primary"
+                                       style="cursor: pointer;">
+                                        <i class="fas fa-eye me-1"></i>View
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                                No orders found
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

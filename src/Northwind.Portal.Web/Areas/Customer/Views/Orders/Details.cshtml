@@ -1,0 +1,121 @@
+@model Northwind.Portal.Domain.DTOs.OrderDto
+@using Northwind.Portal.Domain.Enums
+@{
+    ViewData["Title"] = "Order Details";
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <h5 class="mb-0"><i class="fas fa-receipt me-2"></i>Order #@Model.OrderId</h5>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <h6 class="text-muted mb-3">Order Information</h6>
+                <dl class="row">
+                    <dt class="col-sm-4">Order Date</dt>
+                    <dd class="col-sm-8">@Model.OrderDate?.ToString("MMM dd, yyyy")</dd>
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8">
+                        @{
+                            var statusBadgeClass = Model.CurrentStatus switch
+                            {
+                                OrderPortalStatus.Submitted => "bg-info",
+                                OrderPortalStatus.PendingApproval => "bg-warning",
+                                OrderPortalStatus.Approved => "bg-success",
+                                OrderPortalStatus.Picking => "bg-primary",
+                                OrderPortalStatus.Shipped => "bg-success",
+                                OrderPortalStatus.Cancelled => "bg-danger",
+                                OrderPortalStatus.Rejected => "bg-danger",
+                                _ => "bg-secondary"
+                            };
+                        }
+                        <span class="badge @statusBadgeClass">@Model.CurrentStatus</span>
+                    </dd>
+                    <dt class="col-sm-4">Total</dt>
+                    <dd class="col-sm-8"><strong>@Model.Total.ToString("C")</strong></dd>
+                </dl>
+            </div>
+        </div>
+        
+        <h6 class="text-muted mb-3">Order Items</h6>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Quantity</th>
+                        <th>Price</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.OrderDetails)
+                    {
+                        <tr>
+                            <td>@item.ProductName</td>
+                            <td>@item.Quantity</td>
+                            <td>@item.UnitPrice.ToString("C")</td>
+                            <td><strong>@item.LineTotal.ToString("C")</strong></td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <th colspan="3" class="text-end">Total</th>
+                        <th>@Model.Total.ToString("C")</th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        
+        @if (Model.StatusHistory != null && Model.StatusHistory.Any())
+        {
+            <h6 class="text-muted mb-3 mt-4">Status History</h6>
+            <div class="list-group">
+                @foreach (var history in Model.StatusHistory)
+                {
+                    <div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">
+                                @{
+                                    var historyStatusClass = history.Status switch
+                                    {
+                                        OrderPortalStatus.Submitted => "bg-info",
+                                        OrderPortalStatus.PendingApproval => "bg-warning",
+                                        OrderPortalStatus.Approved => "bg-success",
+                                        OrderPortalStatus.Picking => "bg-primary",
+                                        OrderPortalStatus.Shipped => "bg-success",
+                                        OrderPortalStatus.Cancelled => "bg-danger",
+                                        OrderPortalStatus.Rejected => "bg-danger",
+                                        _ => "bg-secondary"
+                                    };
+                                }
+                                <span class="badge @historyStatusClass me-2">@history.Status</span>
+                                @if (!string.IsNullOrEmpty(history.Comment))
+                                {
+                                    <span>@history.Comment</span>
+                                }
+                            </h6>
+                            <small class="text-muted">
+                                <i class="fas fa-clock me-1"></i>@history.ChangedAt.ToString("MMM dd, yyyy HH:mm")
+                            </small>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (Model.CurrentStatus != OrderPortalStatus.Shipped && Model.CurrentStatus != OrderPortalStatus.Cancelled)
+        {
+            <div class="mt-4">
+                <form asp-action="Cancel" method="post" onsubmit="return confirm('Are you sure you want to cancel this order?');">
+                    <input type="hidden" name="id" value="@Model.OrderId" />
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-times me-2"></i>Cancel Order
+                    </button>
+                </form>
+            </div>
+        }
+    </div>
+</div>

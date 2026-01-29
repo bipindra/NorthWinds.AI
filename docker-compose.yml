@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  northwind-portal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: northwind-portal:latest
+    container_name: northwind-portal
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__NorthwindsDb=Server=sqlserver;Database=NorthwindsDb;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
+      - DatabaseOptions__DbProvider=SqlServer
+    depends_on:
+      - sqlserver
+    networks:
+      - northwind-network
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: northwind-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong@Passw0rd
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    networks:
+      - northwind-network
+
+networks:
+  northwind-network:
+    driver: bridge
+
+volumes:
+  sqlserver-data:

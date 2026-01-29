@@ -1,0 +1,31 @@
+@{
+    ViewData["Title"] = "Error";
+    var statusCode = ViewBag.StatusCode as int? ?? 500;
+    var statusMessage = ViewBag.StatusMessage as string ?? "An error occurred";
+}
+
+<div class="card shadow-sm">
+    <div class="card-body text-center py-5">
+        <div class="mb-4">
+            <i class="fas fa-exclamation-triangle fa-5x text-warning mb-3"></i>
+            <h1 class="display-1 fw-bold text-muted">@statusCode</h1>
+        </div>
+        
+        <h3 class="mb-3">@statusMessage</h3>
+        
+        <p class="text-muted mb-4">
+            @if (statusCode == 404)
+            {
+                <text>The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.</text>
+            }
+            else
+            {
+                <text>We're sorry, but something went wrong. Please try again later.</text>
+            }
+        </p>
+        
+        <a asp-controller="Home" asp-action="Index" class="btn btn-primary">
+            <i class="fas fa-home me-2"></i>Go to Home
+        </a>
+    </div>
+</div>
