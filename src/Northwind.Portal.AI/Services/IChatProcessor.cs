@@ -11,4 +11,12 @@ public class ChatResponse
     public bool IsSuccess { get; set; } = true;
     public string? ErrorMessage { get; set; }
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public List<ChatAction> Actions { get; set; } = new();
+}
+
+public class ChatAction
+{
+    public string Type { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public Dictionary<string, object>? Data { get; set; }
 }

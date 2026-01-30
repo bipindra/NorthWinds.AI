@@ -139,6 +139,41 @@
             $('#sidebarToggle').on('click', function() {
                 $('body').toggleClass('sidebar-collapsed');
             });
+            
+            // Update cart count periodically
+            function updateCartCount() {
+                $.get('@Url.Action("GetCount", "Cart", new { area = "Customer" })')
+                    .done(function(data) {
+                        var count = data.count || 0;
+                        var badge = $('#cartIconLink .cart-badge');
+                        
+                        if (count > 0) {
+                            if (badge.length === 0) {
+                                $('#cartIconLink').append(
+                                    '<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger cart-badge">' + count + '</span>'
+                                );
+                            } else {
+                                badge.text(count);
+                            }
+                        } else {
+                            badge.remove();
+                        }
+                    })
+                    .fail(function() {
+                        // Silently fail
+                    });
+            }
+            
+            // Update cart count on page load
+            updateCartCount();
+            
+            // Update cart count every 10 seconds
+            setInterval(updateCartCount, 10000);
+            
+            // Update cart count when navigating (for SPA-like behavior)
+            $(document).on('click', 'a[href*="Cart/Add"], form[action*="Cart/Add"]', function() {
+                setTimeout(updateCartCount, 500);
+            });
         });
     </script>
     

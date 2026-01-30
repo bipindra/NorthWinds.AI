@@ -13,6 +13,10 @@
         <div class="navbar-actions">
             @if (User.Identity?.IsAuthenticated == true)
             {
+                <a asp-area="Customer" asp-controller="Cart" asp-action="Index" class="btn btn-link position-relative me-2 cart-icon-link" title="Shopping Cart" id="cartIconLink">
+                    <i class="fas fa-shopping-cart fa-lg"></i>
+                    @await Component.InvokeAsync("CartCount")
+                </a>
                 <div class="dropdown">
                     <button class="btn btn-link user-menu p-0" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                         <div class="user-info me-2">

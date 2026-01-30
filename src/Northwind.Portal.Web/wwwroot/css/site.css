@@ -173,6 +173,38 @@ body {
     gap: 1rem;
 }
 
+.cart-icon-link {
+    color: var(--text-primary);
+    text-decoration: none;
+    padding: 0.5rem;
+    position: relative;
+    transition: color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cart-icon-link:hover {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.cart-badge {
+    font-size: 0.65rem;
+    padding: 0.2em 0.5em;
+    min-width: 1.4em;
+    height: 1.4em;
+    text-align: center;
+    font-weight: 700;
+    border: 2px solid var(--card-bg);
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    top: -2px !important;
+    right: -2px !important;
+}
+
 .user-menu {
     display: flex;
     align-items: center;

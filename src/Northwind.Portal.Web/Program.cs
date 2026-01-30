@@ -278,7 +278,10 @@ builder.Services.AddScoped<Northwind.Portal.AI.Services.IChatProcessor>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<Northwind.Portal.AI.Services.ChatProcessor>>();
     var chatService = sp.GetService<Bipins.AI.LLM.IChatService>();
-    return new Northwind.Portal.AI.Services.ChatProcessor(logger, chatService);
+    var catalogService = sp.GetService<ICatalogService>();
+    var cartService = sp.GetService<ICartService>();
+    // Note: userId will be passed per-request, not injected
+    return new Northwind.Portal.AI.Services.ChatProcessor(logger, chatService, catalogService, cartService);
 });
 
 // MVC

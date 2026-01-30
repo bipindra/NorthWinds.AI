@@ -58,6 +58,20 @@ public class CartController : Controller
         return RedirectToAction("Index");
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetCount()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Json(new { count = 0 });
+        }
+
+        var cart = await _cartService.GetCartAsync(userId);
+        var count = cart?.Lines?.Sum(l => l.Quantity) ?? 0;
+        return Json(new { count });
+    }
+
     [HttpPost]
     public async Task<IActionResult> Remove(int cartLineId)
     {

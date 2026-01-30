@@ -71,6 +71,16 @@
 
                     if (data.success) {
                         addMessage('Assistant', data.message, 'bot-message');
+                        
+                        // Handle actions (e.g., product added to cart)
+                        if (data.actions && data.actions.length > 0) {
+                            data.actions.forEach(action => {
+                                if (action.type === 'product_added') {
+                                    // Show a notification or update UI
+                                    showNotification('Product added to cart!', 'success');
+                                }
+                            });
+                        }
                     } else {
                         addMessage('Assistant', data.message || 'Sorry, I encountered an error.', 'bot-message error');
                     }
@@ -91,9 +101,11 @@
                 const isUser = className.includes('user-message');
                 const bgColor = isUser ? '#c8e6c9' : '#e3f2fd';
                 const margin = isUser ? 'ms-auto' : '';
+                // Replace newlines with <br> for proper display
+                const formattedMessage = escapeHtml(message).replace(/\n/g, '<br>');
                 const messageHtml = `
                     <div id="${messageId}" class="chat-message ${className} mb-2 p-2 rounded ${margin}" style="background-color: ${bgColor}; ${isUser ? 'max-width: 80%;' : ''}">
-                        <strong>${sender}:</strong> ${escapeHtml(message)}
+                        <strong>${sender}:</strong> ${formattedMessage}
                     </div>
                 `;
                 chatMessages.append(messageHtml);
@@ -113,6 +125,23 @@
                     "'": '&#039;'
                 };
                 return text.replace(/[&<>"']/g, m => map[m]);
+            }
+
+            function showNotification(message, type) {
+                // Create a temporary notification
+                const notification = $(`
+                    <div class="alert alert-${type === 'success' ? 'success' : 'info'} alert-dismissible fade show position-fixed" 
+                         style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+                        <strong>${message}</strong>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                `);
+                $('body').append(notification);
+                
+                // Auto-dismiss after 3 seconds
+                setTimeout(() => {
+                    notification.fadeOut(() => notification.remove());
+                }, 3000);
             }
 
             // Focus input on load

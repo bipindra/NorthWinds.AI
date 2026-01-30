@@ -42,7 +42,8 @@ public class ChatController : Controller
             {
                 success = response.IsSuccess,
                 message = response.Message,
-                timestamp = response.Timestamp
+                timestamp = response.Timestamp,
+                actions = response.Actions?.Select(a => new { type = a.Type, message = a.Message, data = a.Data })
             });
         }
         catch (Exception ex)
