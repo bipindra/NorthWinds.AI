@@ -1,0 +1,11 @@
+ProductName,Description,CategoryId,SupplierId,QuantityPerUnit,UnitPrice,UnitsInStock,UnitsOnOrder,ReorderLevel,Discontinued
+Organic Green Tea,"Premium organic green tea with antioxidant properties",1,1,"24 boxes x 20 bags",15.50,100,0,10,false
+Premium Coffee Beans,"High-quality arabica coffee beans, medium roast",1,1,"12 bags x 1 lb",25.99,50,0,5,false
+Artisan Honey,"Pure raw honey from local beekeepers",2,2,"500g jar",12.75,75,0,10,false
+Sea Salt,"Natural sea salt harvested from pristine waters",2,2,"1kg bag",8.50,200,0,20,false
+Olive Oil Extra Virgin,"Cold-pressed extra virgin olive oil, first pressing",2,3,"750ml bottle",18.99,60,0,10,false
+Dark Chocolate Bar,"70% cocoa dark chocolate, rich and smooth",3,1,"100g bar",6.25,150,0,25,false
+Whole Grain Bread,"Fresh baked whole grain bread with seeds",4,2,"500g loaf",4.50,80,0,15,false
+Fresh Milk,"Farm-fresh whole milk, pasteurized",4,3,"1 liter carton",3.75,120,0,30,false
+Free Range Eggs,"Organic free-range eggs from happy hens",4,2,"12 eggs",5.99,90,0,20,false
+Organic Apples,"Crisp organic apples, perfect for snacking",5,1,"1kg bag",7.50,200,0,50,false

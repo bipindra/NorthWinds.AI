@@ -20,7 +20,7 @@ public class OrderRepository : IOrderRepository
             .Include(o => o.Shipper)
             .Include(o => o.OrderDetails)
                 .ThenInclude(od => od.Product)
-            .Include(o => o.OrderStatusHistories.OrderByDescending(h => h.ChangedAt))
+            .Include(o => o.OrderStatusHistories)
             .Include(o => o.OrderMeta)
             .AsNoTracking()
             .AsQueryable();
@@ -38,7 +38,7 @@ public class OrderRepository : IOrderRepository
             .Include(o => o.Shipper)
             .Include(o => o.OrderDetails)
                 .ThenInclude(od => od.Product)
-            .Include(o => o.OrderStatusHistories.OrderByDescending(h => h.ChangedAt))
+            .Include(o => o.OrderStatusHistories)
             .Include(o => o.OrderMeta)
             .AsNoTracking()
             .Where(o => o.OrderId == orderId);

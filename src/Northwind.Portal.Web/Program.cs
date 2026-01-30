@@ -274,14 +274,32 @@ static void RegisterVectorStore(IServiceCollection services, VectorDbOptions? ve
     }
 }
 
+// Register Product Import Service
+builder.Services.AddScoped<Northwind.Portal.Data.Services.ProductImportService>();
+
+// Register Product Embedding Service
+builder.Services.AddScoped<Northwind.Portal.AI.Services.IProductEmbeddingService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<Northwind.Portal.AI.Services.ProductEmbeddingService>>();
+    var chatService = sp.GetService<Bipins.AI.LLM.IChatService>();
+    var vectorStore = sp.GetService<Bipins.AI.Vector.IVectorStore>();
+    var vectorOptions = builder.Configuration.GetSection(VectorDbOptions.SectionName).Get<VectorDbOptions>();
+    var collectionName = vectorOptions?.Qdrant?.CollectionName ?? "northwind_products";
+    return new Northwind.Portal.AI.Services.ProductEmbeddingService(chatService, vectorStore, logger, collectionName);
+});
+
 builder.Services.AddScoped<Northwind.Portal.AI.Services.IChatProcessor>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<Northwind.Portal.AI.Services.ChatProcessor>>();
     var chatService = sp.GetService<Bipins.AI.LLM.IChatService>();
     var catalogService = sp.GetService<ICatalogService>();
     var cartService = sp.GetService<ICartService>();
+    var orderService = sp.GetService<IOrderService>();
+    var tenantContext = sp.GetService<ITenantContext>();
+    var northwindContext = sp.GetService<NorthwindDbContext>();
+    var embeddingService = sp.GetService<Northwind.Portal.AI.Services.IProductEmbeddingService>();
     // Note: userId will be passed per-request, not injected
-    return new Northwind.Portal.AI.Services.ChatProcessor(logger, chatService, catalogService, cartService);
+    return new Northwind.Portal.AI.Services.ChatProcessor(logger, chatService, catalogService, cartService, orderService, tenantContext, northwindContext, embeddingService);
 });
 
 // MVC

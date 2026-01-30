@@ -1,0 +1,138 @@
+@model Northwind.Portal.Domain.DTOs.ProductDto
+@{
+    ViewData["Title"] = "Edit Product";
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-edit me-2"></i>Edit Product</h5>
+        <div>
+            <a asp-action="Details" asp-route-id="@Model.ProductId" class="btn btn-info btn-sm me-2">
+                <i class="fas fa-eye me-1"></i>View Details
+            </a>
+            <a asp-action="Index" class="btn btn-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>Back to List
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <form asp-action="Edit" method="post">
+            @Html.AntiForgeryToken()
+            <input asp-for="ProductId" type="hidden" />
+            
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label asp-for="ProductName" class="form-label">Product Name <span class="text-danger">*</span></label>
+                        <input asp-for="ProductName" class="form-control" required maxlength="100" />
+                        <span asp-validation-for="ProductName" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label asp-for="UnitPrice" class="form-label">Unit Price</label>
+                        <input asp-for="UnitPrice" type="number" step="0.01" min="0" class="form-control" />
+                        <span asp-validation-for="UnitPrice" class="text-danger"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Description" class="form-label">Description</label>
+                <textarea asp-for="Description" class="form-control" rows="3" maxlength="500"></textarea>
+                <span asp-validation-for="Description" class="text-danger"></span>
+                <div class="form-text">Maximum 500 characters</div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label asp-for="CategoryId" class="form-label">Category</label>
+                        <select asp-for="CategoryId" class="form-select">
+                            <option value="">-- Select Category --</option>
+                            @foreach (var category in ViewBag.Categories as IEnumerable<Northwind.Portal.Domain.DTOs.CategoryDto> ?? Enumerable.Empty<Northwind.Portal.Domain.DTOs.CategoryDto>())
+                            {
+                                <option value="@category.CategoryId" selected="@(Model.CategoryId == category.CategoryId)">@category.CategoryName</option>
+                            }
+                        </select>
+                        <span asp-validation-for="CategoryId" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label asp-for="SupplierId" class="form-label">Supplier</label>
+                        <select asp-for="SupplierId" class="form-select">
+                            <option value="">-- Select Supplier --</option>
+                            @foreach (var supplier in ViewBag.Suppliers as IEnumerable<Northwind.Portal.Domain.DTOs.SupplierDto> ?? Enumerable.Empty<Northwind.Portal.Domain.DTOs.SupplierDto>())
+                            {
+                                <option value="@supplier.SupplierId" selected="@(Model.SupplierId == supplier.SupplierId)">@supplier.CompanyName</option>
+                            }
+                        </select>
+                        <span asp-validation-for="SupplierId" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label asp-for="QuantityPerUnit" class="form-label">Quantity Per Unit</label>
+                        <input asp-for="QuantityPerUnit" class="form-control" maxlength="20" placeholder="e.g., 24 boxes x 20 bags" />
+                        <span asp-validation-for="QuantityPerUnit" class="text-danger"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label asp-for="UnitsInStock" class="form-label">Units In Stock</label>
+                        <input asp-for="UnitsInStock" type="number" min="0" class="form-control" />
+                        <span asp-validation-for="UnitsInStock" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label asp-for="UnitsOnOrder" class="form-label">Units On Order</label>
+                        <input asp-for="UnitsOnOrder" type="number" min="0" class="form-control" />
+                        <span asp-validation-for="UnitsOnOrder" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label asp-for="ReorderLevel" class="form-label">Reorder Level</label>
+                        <input asp-for="ReorderLevel" type="number" min="0" class="form-control" />
+                        <span asp-validation-for="ReorderLevel" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <div class="form-check mt-4">
+                            <input asp-for="Discontinued" class="form-check-input" type="checkbox" />
+                            <label asp-for="Discontinued" class="form-check-label">Discontinued</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="indexToVectorStore" name="indexToVectorStore" value="true" checked />
+                <label class="form-check-label" for="indexToVectorStore">
+                    Re-index product to vector store for AI search (RAG)
+                </label>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i>Update Product
+                </button>
+                <a asp-action="Index" class="btn btn-secondary">
+                    <i class="fas fa-times me-1"></i>Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

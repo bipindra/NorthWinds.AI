@@ -1,0 +1,6 @@
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<IdentityUser> SignInManager
+@inject UserManager<IdentityUser> UserManager
+
+@* This partial is required by Identity UI but we use _TopNavbar for authentication UI *@
+@* Keeping it empty since authentication is handled in _TopNavbar *@

@@ -136,7 +136,8 @@ public class NorthwindDbContext : DbContext
         {
             entity.ToTable("Products");
             entity.HasKey(e => e.ProductId);
-            entity.Property(e => e.ProductName).IsRequired().HasMaxLength(40);
+            entity.Property(e => e.ProductName).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.QuantityPerUnit).HasMaxLength(20);
             entity.Property(e => e.UnitPrice).HasColumnType("money");
             entity.Property(e => e.UnitsInStock).HasColumnType("smallint");

@@ -39,13 +39,31 @@ public class ProductRepository : IProductRepository
         return await Task.FromResult(query);
     }
 
-    public async Task<Product?> GetProductByIdAsync(int productId)
+    public async Task<Product?> GetProductByIdAsync(int productId, bool trackChanges = false)
     {
-        return await _context.Products
+        var query = _context.Products
             .Include(p => p.Category)
             .Include(p => p.Supplier)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.ProductId == productId);
+            .AsQueryable();
+        
+        if (!trackChanges)
+            query = query.AsNoTracking();
+            
+        return await query.FirstOrDefaultAsync(p => p.ProductId == productId);
+    }
+
+    public async Task<Product> CreateProductAsync(Product product)
+    {
+        _context.Products.Add(product);
+        await _context.SaveChangesAsync();
+        return product;
+    }
+
+    public async Task<bool> UpdateProductAsync(Product product)
+    {
+        _context.Products.Update(product);
+        var result = await _context.SaveChangesAsync();
+        return result > 0;
     }
 
     public async Task<IEnumerable<Category>> GetCategoriesAsync()

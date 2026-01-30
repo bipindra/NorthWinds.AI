@@ -1,0 +1,221 @@
+@{
+    ViewData["Title"] = "Reindex Products to Vector Store";
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-sync-alt me-2"></i>Reindex All Products to Vector Store</h5>
+        <a asp-action="Index" class="btn btn-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Back to Products
+        </a>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>What is this?</strong> This will regenerate embeddings for all products and store them in the vector database (Qdrant) for AI-powered semantic search. This process may take several minutes depending on the number of products.
+        </div>
+
+        <div id="reindexForm">
+            <form id="reindexFormElement" method="post">
+                @Html.AntiForgeryToken()
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary btn-lg" id="startReindexBtn">
+                        <i class="fas fa-sync-alt me-2"></i>Start Reindexing
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div id="progressContainer" style="display: none;" class="mt-4">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">Reindexing Progress</h6>
+                    <div class="progress mb-3" style="height: 30px;">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" 
+                             style="width: 0%" 
+                             aria-valuenow="0" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100">
+                            <span id="progressText">0%</span>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <small id="progressLabel">Initializing...</small>
+                        <small id="progressStats" class="text-muted"></small>
+                    </div>
+                    <div id="progressDetails" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="resultContainer" style="display: none;" class="mt-4">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">Reindexing Complete</h6>
+                    <div id="resultMessage"></div>
+                    <div id="resultErrors" class="mt-3" style="display: none;"></div>
+                    <div class="mt-3">
+                        <a asp-action="Index" class="btn btn-primary">
+                            <i class="fas fa-arrow-left me-1"></i>Back to Products
+                        </a>
+                        <button type="button" class="btn btn-secondary" onclick="location.reload()">
+                            <i class="fas fa-redo me-1"></i>Reindex Again
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function() {
+            const form = document.getElementById('reindexFormElement');
+            const progressContainer = document.getElementById('progressContainer');
+            const resultContainer = document.getElementById('resultContainer');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const progressLabel = document.getElementById('progressLabel');
+            const progressStats = document.getElementById('progressStats');
+            const progressDetails = document.getElementById('progressDetails');
+            const startBtn = document.getElementById('startReindexBtn');
+            const resultMessage = document.getElementById('resultMessage');
+            const resultErrors = document.getElementById('resultErrors');
+
+            let isRunning = false;
+            let pollInterval = null;
+
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                if (isRunning) {
+                    return;
+                }
+
+                isRunning = true;
+                startBtn.disabled = true;
+                startBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Starting...';
+                
+                document.getElementById('reindexForm').style.display = 'none';
+                progressContainer.style.display = 'block';
+                resultContainer.style.display = 'none';
+
+                // Get total product count first
+                try {
+                    const statusResponse = await fetch('@Url.Action("ReindexStatus")');
+                    const statusData = await statusResponse.json();
+                    const totalProducts = statusData.totalProducts || 0;
+
+                    // Start the reindexing process
+                    const formData = new FormData(form);
+                    const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+                    
+                    const response = await fetch('@Url.Action("Reindex")', {
+                        method: 'POST',
+                        headers: {
+                            'RequestVerificationToken': token,
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: formData
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // Simulate progress (since we don't have real-time updates)
+                        let current = 0;
+                        const total = data.totalProducts || totalProducts;
+                        const duration = data.duration || 60; // seconds
+                        const interval = duration * 1000 / total; // ms per product
+
+                        const updateProgress = () => {
+                            if (current < total) {
+                                current++;
+                                const percentage = Math.min((current / total) * 100, 95); // Cap at 95% until done
+                                
+                                progressBar.style.width = percentage + '%';
+                                progressBar.setAttribute('aria-valuenow', percentage);
+                                progressText.textContent = Math.round(percentage) + '%';
+                                progressLabel.textContent = `Processing product ${current} of ${total}...`;
+                                progressStats.textContent = `Success: ${data.successCount || 0} | Errors: ${data.errorCount || 0}`;
+                                
+                                if (current < total) {
+                                    setTimeout(updateProgress, interval);
+                                }
+                            }
+                        };
+
+                        updateProgress();
+
+                        // Wait for completion
+                        setTimeout(() => {
+                            progressBar.style.width = '100%';
+                            progressBar.setAttribute('aria-valuenow', 100);
+                            progressText.textContent = '100%';
+                            progressBar.classList.remove('progress-bar-animated');
+                            progressBar.classList.add('bg-success');
+                            
+                            progressLabel.textContent = 'Reindexing completed!';
+                            
+                            // Show results
+                            setTimeout(() => {
+                                progressContainer.style.display = 'none';
+                                resultContainer.style.display = 'block';
+                                
+                                resultMessage.innerHTML = `
+                                    <div class="alert alert-success">
+                                        <i class="fas fa-check-circle me-2"></i>
+                                        <strong>Reindexing completed successfully!</strong><br>
+                                        <ul class="mb-0 mt-2">
+                                            <li>Total products: ${data.totalProducts}</li>
+                                            <li>Successfully indexed: ${data.successCount}</li>
+                                            <li>Errors: ${data.errorCount}</li>
+                                            <li>Duration: ${Math.round(data.duration)} seconds</li>
+                                        </ul>
+                                    </div>
+                                `;
+
+                                if (data.errors && data.errors.length > 0) {
+                                    resultErrors.style.display = 'block';
+                                    resultErrors.innerHTML = `
+                                        <div class="alert alert-warning">
+                                            <strong>Errors encountered:</strong>
+                                            <ul class="mb-0 mt-2">
+                                                ${data.errors.map(e => `<li>${e}</li>`).join('')}
+                                            </ul>
+                                        </div>
+                                    `;
+                                }
+                            }, 1000);
+                        }, duration * 1000);
+                    } else {
+                        progressContainer.style.display = 'none';
+                        resultContainer.style.display = 'block';
+                        resultMessage.innerHTML = `
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-circle me-2"></i>
+                                <strong>Error:</strong> ${data.message || 'An error occurred during reindexing.'}
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    progressContainer.style.display = 'none';
+                    resultContainer.style.display = 'block';
+                    resultMessage.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            <strong>Error:</strong> ${error.message}
+                        </div>
+                    `;
+                } finally {
+                    isRunning = false;
+                    startBtn.disabled = false;
+                    startBtn.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Start Reindexing';
+                }
+            });
+        })();
+    </script>
+}

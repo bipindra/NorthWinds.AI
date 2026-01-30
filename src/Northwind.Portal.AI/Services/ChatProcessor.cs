@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging;
 using Bipins.AI.LLM;
 using Northwind.Portal.Domain.Services;
 using Northwind.Portal.Domain.DTOs;
+using Microsoft.EntityFrameworkCore;
+using Northwind.Portal.Data.Contexts;
 
 namespace Northwind.Portal.AI.Services;
 
@@ -11,6 +13,10 @@ public class ChatProcessor : IChatProcessor
     private readonly IChatService? _chatService;
     private readonly ICatalogService? _catalogService;
     private readonly ICartService? _cartService;
+    private readonly IOrderService? _orderService;
+    private readonly ITenantContext? _tenantContext;
+    private readonly NorthwindDbContext? _northwindContext;
+    private readonly IProductEmbeddingService? _embeddingService;
     private readonly string? _userId;
 
     public ChatProcessor(
@@ -18,13 +24,57 @@ public class ChatProcessor : IChatProcessor
         IChatService? chatService = null,
         ICatalogService? catalogService = null,
         ICartService? cartService = null,
+        IOrderService? orderService = null,
+        ITenantContext? tenantContext = null,
+        NorthwindDbContext? northwindContext = null,
+        IProductEmbeddingService? embeddingService = null,
         string? userId = null)
     {
         _logger = logger;
         _chatService = chatService;
         _catalogService = catalogService;
         _cartService = cartService;
+        _orderService = orderService;
+        _tenantContext = tenantContext;
+        _northwindContext = northwindContext;
+        _embeddingService = embeddingService;
         _userId = userId;
+    }
+    
+    private async Task<string?> GetCustomerIdFromUserIdAsync(string userId)
+    {
+        // Try TenantContext first (if HttpContext is available)
+        if (_tenantContext != null)
+        {
+            try
+            {
+                var customerId = await _tenantContext.GetCurrentCustomerIdAsync();
+                if (!string.IsNullOrEmpty(customerId))
+                    return customerId;
+            }
+            catch
+            {
+                // Fall through to direct DB query
+            }
+        }
+        
+        // Fallback: Query database directly
+        if (_northwindContext != null)
+        {
+            try
+            {
+                var map = await _northwindContext.PortalUserCustomerMaps
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(m => m.UserId == userId);
+                return map?.CustomerId;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting customer ID from user ID");
+            }
+        }
+        
+        return null;
     }
 
     public async Task<ChatResponse> ProcessMessageAsync(string message, string? userId = null, CancellationToken cancellationToken = default)
@@ -107,20 +157,42 @@ public class ChatProcessor : IChatProcessor
 
     private string GetSystemPrompt()
     {
-        return @"You are a helpful AI assistant for the Northwind Portal. You can help customers:
-1. Search for products by name
-2. Add products to their shopping cart
+        return @"You are a helpful AI assistant for the Northwind Portal. You can help customers with:
 
-When a customer asks to add a product to their cart, you should:
-1. First search for the product by name using the search_products function
-2. If found, use the add_to_cart function with the product ID and quantity
+1. **Product Discovery**:
+   - Search for products by name
+   - Find similar products
+   - Get product details
+
+2. **Shopping Cart Management**:
+   - Add products to cart
+   - Update quantities in cart
+   - Remove items from cart
+   - View cart contents
+   - Get smart suggestions for complementary products
+
+3. **Order Management**:
+   - View order history (e.g., ""show my last 3 orders"")
+   - Reorder previous orders (e.g., ""reorder what I bought last month"")
+   - Check order status and shipping estimates
+   - Get order details
+
+4. **Smart Features**:
+   - Suggest complementary products (""you might also need Y with X"")
+   - Reorder entire previous orders
+   - Bundle recommendations
 
 Available functions:
-- search_products(searchTerm): Search for products by name. Returns a list of products with ProductId, ProductName, UnitPrice, and UnitsInStock.
-- add_to_cart(productId, quantity): Add a product to the customer's cart. Returns success status.
+- search_products(searchTerm): Search for products by name
+- add_to_cart(productId, quantity): Add a product to cart
+- update_cart_item(productId, quantity): Update quantity of item in cart
+- get_order_history(limit): Get customer's recent orders
+- reorder_order(orderId): Reorder all items from a previous order
+- get_order_status(orderId): Get status and shipping info for an order
+- get_cart_contents(): Get current cart items
+- suggest_complements(productId): Get product suggestions
 
-When you successfully add a product to cart, confirm it to the user with the product name and quantity.
-Always be helpful and friendly.";
+Always be helpful, friendly, and provide clear confirmations when actions are completed.";
     }
 
     private async Task<string> ProcessFunctionCallsAsync(string aiResponse, string userMessage, string? userId = null)
@@ -225,6 +297,60 @@ Always be helpful and friendly.";
                 {
                     return $"{aiResponse}\n\n❌ No products found matching '{searchTerm}'. Please try a different search term.";
                 }
+            }
+        }
+        
+        // Check for order history queries
+        if (lowerMessage.Contains("order") && (lowerMessage.Contains("history") || lowerMessage.Contains("show") || 
+            lowerMessage.Contains("list") || lowerMessage.Contains("my orders") || lowerMessage.Contains("last")))
+        {
+            var orderHistoryResponse = await HandleOrderHistoryQueryAsync(userMessage, userId);
+            if (!string.IsNullOrEmpty(orderHistoryResponse))
+            {
+                return $"{aiResponse}\n\n{orderHistoryResponse}";
+            }
+        }
+        
+        // Check for reorder requests
+        if (lowerMessage.Contains("reorder") || (lowerMessage.Contains("order again") && lowerMessage.Contains("last")))
+        {
+            var reorderResponse = await HandleReorderRequestAsync(userMessage, userId);
+            if (!string.IsNullOrEmpty(reorderResponse))
+            {
+                return $"{aiResponse}\n\n{reorderResponse}";
+            }
+        }
+        
+        // Check for cart modifications (change quantity, update)
+        if ((lowerMessage.Contains("change") || lowerMessage.Contains("update") || lowerMessage.Contains("modify")) && 
+            (lowerMessage.Contains("quantity") || lowerMessage.Contains("cart") || lowerMessage.Contains("item")))
+        {
+            var cartModResponse = await HandleCartModificationAsync(userMessage, userId);
+            if (!string.IsNullOrEmpty(cartModResponse))
+            {
+                return $"{aiResponse}\n\n{cartModResponse}";
+            }
+        }
+        
+        // Check for shipping estimates
+        if (lowerMessage.Contains("shipping") || lowerMessage.Contains("arrive") || 
+            lowerMessage.Contains("delivery") || lowerMessage.Contains("when will"))
+        {
+            var shippingResponse = await HandleShippingEstimateQueryAsync(userMessage, userId);
+            if (!string.IsNullOrEmpty(shippingResponse))
+            {
+                return $"{aiResponse}\n\n{shippingResponse}";
+            }
+        }
+        
+        // Check for smart suggestions
+        if (lowerMessage.Contains("suggest") || lowerMessage.Contains("recommend") || 
+            lowerMessage.Contains("might also need") || lowerMessage.Contains("complement"))
+        {
+            var suggestionResponse = await HandleSmartSuggestionsAsync(userMessage, userId);
+            if (!string.IsNullOrEmpty(suggestionResponse))
+            {
+                return $"{aiResponse}\n\n{suggestionResponse}";
             }
         }
         
@@ -369,6 +495,25 @@ Always be helpful and friendly.";
 
     private async Task<List<ProductDto>> SearchProductsAsync(string searchTerm)
     {
+        // Try vector search first (RAG) if available
+        if (_embeddingService != null)
+        {
+            try
+            {
+                var vectorResults = await _embeddingService.SearchProductsAsync(searchTerm, 5);
+                if (vectorResults.Any())
+                {
+                    _logger.LogDebug("Found {Count} products using vector search", vectorResults.Count);
+                    return vectorResults;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Vector search failed, falling back to text search");
+            }
+        }
+        
+        // Fallback to traditional text search
         if (_catalogService == null)
             return new List<ProductDto>();
         
@@ -432,6 +577,393 @@ Always be helpful and friendly.";
         }
     }
 
+    private async Task<string> HandleOrderHistoryQueryAsync(string userMessage, string? userId)
+    {
+        if (_orderService == null || string.IsNullOrEmpty(userId))
+        {
+            return string.Empty;
+        }
+        
+        try
+        {
+            var customerId = await GetCustomerIdFromUserIdAsync(userId);
+            if (string.IsNullOrEmpty(customerId))
+            {
+                return "❌ Could not find your customer information.";
+            }
+            
+            // Extract limit from message (e.g., "last 3 orders", "show 5 orders")
+            var limit = ExtractNumberFromMessage(userMessage) ?? 5;
+            if (limit > 20) limit = 20; // Cap at 20
+            
+            var orders = await _orderService.GetOrdersByCustomerIdAsync(customerId);
+            var recentOrders = orders.OrderByDescending(o => o.OrderDate).Take(limit).ToList();
+            
+            if (!recentOrders.Any())
+            {
+                return "📋 You don't have any orders yet.";
+            }
+            
+            var orderList = string.Join("\n\n", recentOrders.Select((o, idx) => 
+                $"**Order #{o.OrderId}** - {o.OrderDate:MMM dd, yyyy}\n" +
+                $"Status: {o.CurrentStatus}\n" +
+                $"Items: {o.OrderDetails.Count} products\n" +
+                $"Total: ${o.Total:F2}\n" +
+                (o.ShippedDate.HasValue ? $"Shipped: {o.ShippedDate:MMM dd, yyyy}\n" : "") +
+                (o.TrackingNumber != null ? $"Tracking: {o.TrackingNumber}" : "")));
+            
+            return $"📋 Your last {recentOrders.Count} order(s):\n\n{orderList}\n\nYou can ask me to reorder any of these!";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting order history");
+            return "❌ Could not retrieve your order history. Please try again.";
+        }
+    }
+    
+    private async Task<string> HandleReorderRequestAsync(string userMessage, string? userId)
+    {
+        if (_orderService == null || _cartService == null || string.IsNullOrEmpty(userId))
+        {
+            return string.Empty;
+        }
+        
+        try
+        {
+            var customerId = await GetCustomerIdFromUserIdAsync(userId);
+            if (string.IsNullOrEmpty(customerId))
+            {
+                return "❌ Could not find your customer information.";
+            }
+            
+            // Extract order ID or time period
+            var orderId = ExtractOrderIdFromMessage(userMessage);
+            var timePeriod = ExtractTimePeriodFromMessage(userMessage); // "last month", "last week", etc.
+            
+            IEnumerable<OrderDto> orders;
+            if (orderId.HasValue)
+            {
+                var order = await _orderService.GetOrderByIdAsync(orderId.Value, customerId);
+                orders = order != null ? new[] { order } : Enumerable.Empty<OrderDto>();
+            }
+            else if (timePeriod.HasValue)
+            {
+                var allOrders = await _orderService.GetOrdersByCustomerIdAsync(customerId);
+                var cutoffDate = DateTime.UtcNow.AddDays(-timePeriod.Value);
+                orders = allOrders.Where(o => o.OrderDate >= cutoffDate).OrderByDescending(o => o.OrderDate);
+            }
+            else
+            {
+                // Default to most recent order
+                var allOrders = await _orderService.GetOrdersByCustomerIdAsync(customerId);
+                orders = allOrders.OrderByDescending(o => o.OrderDate).Take(1);
+            }
+            
+            var ordersList = orders.ToList();
+            if (!ordersList.Any())
+            {
+                return "❌ No orders found matching your request.";
+            }
+            
+            var addedCount = 0;
+            var failedProducts = new List<string>();
+            
+            foreach (var order in ordersList)
+            {
+                foreach (var detail in order.OrderDetails)
+                {
+                    var result = await AddToCartAsync(detail.ProductId, detail.Quantity, userId);
+                    if (result.Success)
+                    {
+                        addedCount++;
+                    }
+                    else
+                    {
+                        failedProducts.Add($"{detail.ProductName} (may be discontinued or out of stock)");
+                    }
+                }
+            }
+            
+            var response = $"✅ Successfully added {addedCount} item(s) to your cart from {ordersList.Count} order(s)!";
+            if (failedProducts.Any())
+            {
+                response += $"\n\n⚠️ Could not add: {string.Join(", ", failedProducts.Take(3))}";
+            }
+            
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing reorder request");
+            return "❌ Could not process your reorder request. Please try again.";
+        }
+    }
+    
+    private async Task<string> HandleCartModificationAsync(string userMessage, string? userId)
+    {
+        if (_cartService == null || string.IsNullOrEmpty(userId))
+        {
+            return string.Empty;
+        }
+        
+        try
+        {
+            var cart = await _cartService.GetCartAsync(userId);
+            if (cart == null || !cart.Lines.Any())
+            {
+                return "🛒 Your cart is empty.";
+            }
+            
+            // Extract product info and new quantity
+            var productInfo = ExtractProductInfo(userMessage);
+            var newQuantity = ExtractQuantity(userMessage);
+            
+            if (!newQuantity.HasValue)
+            {
+                return "❌ Please specify the new quantity (e.g., 'change quantity of chai to 5').";
+            }
+            
+            if (productInfo.ProductId.HasValue)
+            {
+                var cartLine = cart.Lines.FirstOrDefault(l => l.ProductId == productInfo.ProductId.Value);
+                if (cartLine != null)
+                {
+                    var success = await _cartService.UpdateQuantityAsync(userId, cartLine.Id, (short)newQuantity.Value);
+                    if (success)
+                    {
+                        return $"✅ Updated {cartLine.ProductName} quantity to {newQuantity.Value}.";
+                    }
+                }
+            }
+            else if (!string.IsNullOrEmpty(productInfo.ProductName))
+            {
+                // Find product by name
+                var cartLine = cart.Lines.FirstOrDefault(l => 
+                    l.ProductName.Contains(productInfo.ProductName, StringComparison.OrdinalIgnoreCase));
+                if (cartLine != null)
+                {
+                    var success = await _cartService.UpdateQuantityAsync(userId, cartLine.Id, (short)newQuantity.Value);
+                    if (success)
+                    {
+                        return $"✅ Updated {cartLine.ProductName} quantity to {newQuantity.Value}.";
+                    }
+                }
+                else
+                {
+                    return $"❌ Product '{productInfo.ProductName}' not found in your cart.";
+                }
+            }
+            else
+            {
+                return "❌ Could not identify which product to update. Please specify the product name or ID.";
+            }
+            
+            return "❌ Could not update cart item.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error modifying cart");
+            return "❌ Could not modify your cart. Please try again.";
+        }
+    }
+    
+    private async Task<string> HandleShippingEstimateQueryAsync(string userMessage, string? userId)
+    {
+        if (_orderService == null || string.IsNullOrEmpty(userId))
+        {
+            return string.Empty;
+        }
+        
+        try
+        {
+            var customerId = await GetCustomerIdFromUserIdAsync(userId);
+            if (string.IsNullOrEmpty(customerId))
+            {
+                return "❌ Could not find your customer information.";
+            }
+            
+            // Extract order ID from message
+            var orderId = ExtractOrderIdFromMessage(userMessage);
+            if (!orderId.HasValue)
+            {
+                // Check for "my order" or "current order" - get most recent
+                var orders = await _orderService.GetOrdersByCustomerIdAsync(customerId);
+                var recentOrder = orders.OrderByDescending(o => o.OrderDate).FirstOrDefault();
+                if (recentOrder != null)
+                {
+                    orderId = recentOrder.OrderId;
+                }
+            }
+            
+            if (!orderId.HasValue)
+            {
+                return "❌ Could not find the order. Please specify an order ID.";
+            }
+            
+            var order = await _orderService.GetOrderByIdAsync(orderId.Value, customerId);
+            if (order == null)
+            {
+                return "❌ Order not found.";
+            }
+            
+            var response = $"📦 **Order #{order.OrderId}**\n";
+            response += $"Status: {order.CurrentStatus}\n";
+            
+            if (order.ShippedDate.HasValue)
+            {
+                response += $"✅ Shipped on: {order.ShippedDate:MMM dd, yyyy}\n";
+                if (order.RequiredDate.HasValue)
+                {
+                    var daysUntilRequired = (order.RequiredDate.Value - order.ShippedDate.Value).Days;
+                    response += $"Expected delivery: {order.RequiredDate:MMM dd, yyyy} ({daysUntilRequired} days)\n";
+                }
+            }
+            else if (order.RequiredDate.HasValue)
+            {
+                var daysUntilRequired = (order.RequiredDate.Value - DateTime.UtcNow).Days;
+                response += $"Expected shipping: {order.RequiredDate:MMM dd, yyyy} ({daysUntilRequired} days)\n";
+            }
+            else
+            {
+                response += "⏳ Shipping date not yet determined.\n";
+            }
+            
+            if (!string.IsNullOrEmpty(order.TrackingNumber))
+            {
+                response += $"📮 Tracking: {order.TrackingNumber}\n";
+            }
+            
+            if (!string.IsNullOrEmpty(order.ShipperName))
+            {
+                response += $"🚚 Carrier: {order.ShipperName}";
+            }
+            
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting shipping estimate");
+            return "❌ Could not retrieve shipping information. Please try again.";
+        }
+    }
+    
+    private async Task<string> HandleSmartSuggestionsAsync(string userMessage, string? userId)
+    {
+        if (_catalogService == null || _cartService == null || string.IsNullOrEmpty(userId))
+        {
+            return string.Empty;
+        }
+        
+        try
+        {
+            // Extract product ID or name from message
+            var productInfo = ExtractProductInfo(userMessage);
+            int? productId = null;
+            
+            if (productInfo.ProductId.HasValue)
+            {
+                productId = productInfo.ProductId.Value;
+            }
+            else if (!string.IsNullOrEmpty(productInfo.ProductName))
+            {
+                var products = await SearchProductsAsync(productInfo.ProductName);
+                if (products.Any())
+                {
+                    productId = products.First().ProductId;
+                }
+            }
+            else
+            {
+                // Get from cart - suggest for items in cart
+                var cart = await _cartService.GetCartAsync(userId);
+                if (cart != null && cart.Lines.Any())
+                {
+                    productId = cart.Lines.First().ProductId;
+                }
+            }
+            
+            if (!productId.HasValue)
+            {
+                return "❌ Could not identify the product. Please specify a product name or ID.";
+            }
+            
+            // Get product details
+            var product = await _catalogService.GetProductByIdAsync(productId.Value);
+            if (product == null)
+            {
+                return "❌ Product not found.";
+            }
+            
+            // Find complementary products (same category, different products)
+            var complementaryProducts = await _catalogService.GetProductsAsync(1, 5, product.CategoryId, null, false, true, null);
+            var suggestions = complementaryProducts.Items
+                .Where(p => p.ProductId != productId.Value)
+                .Take(3)
+                .ToList();
+            
+            if (!suggestions.Any())
+            {
+                return $"💡 No complementary products found for {product.ProductName}.";
+            }
+            
+            var suggestionList = string.Join("\n", suggestions.Select(p => 
+                $"• {p.ProductName} - ${p.UnitPrice:F2} - {p.UnitsInStock} in stock"));
+            
+            return $"💡 **You might also like these products with {product.ProductName}:**\n\n{suggestionList}\n\nJust ask me to add any of them to your cart!";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting smart suggestions");
+            return "❌ Could not generate suggestions. Please try again.";
+        }
+    }
+    
+    private int? ExtractNumberFromMessage(string message)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(message, @"(\d+)");
+        if (match.Success && int.TryParse(match.Groups[1].Value, out var number))
+        {
+            return number;
+        }
+        return null;
+    }
+    
+    private int? ExtractOrderIdFromMessage(string message)
+    {
+        // Patterns: "order 123", "order #123", "order ID 123"
+        var match = System.Text.RegularExpressions.Regex.Match(message, 
+            @"order\s*(?:#|id\s*)?(\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (match.Success && int.TryParse(match.Groups[1].Value, out var orderId))
+        {
+            return orderId;
+        }
+        return null;
+    }
+    
+    private int? ExtractTimePeriodFromMessage(string message)
+    {
+        var lower = message.ToLowerInvariant();
+        
+        if (lower.Contains("last month") || lower.Contains("past month"))
+            return 30;
+        if (lower.Contains("last week") || lower.Contains("past week"))
+            return 7;
+        if (lower.Contains("last 2 months") || lower.Contains("past 2 months"))
+            return 60;
+        if (lower.Contains("last 3 months") || lower.Contains("past 3 months"))
+            return 90;
+        
+        // Extract number of days
+        var match = System.Text.RegularExpressions.Regex.Match(message, 
+            @"last\s+(\d+)\s+days?", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (match.Success && int.TryParse(match.Groups[1].Value, out var days))
+        {
+            return days;
+        }
+        
+        return null;
+    }
+
     private List<ChatAction> GetActionsFromResponse(string response)
     {
         var actions = new List<ChatAction>();
@@ -443,6 +975,16 @@ Always be helpful and friendly.";
             {
                 Type = "product_added",
                 Message = "Product added to cart successfully"
+            });
+        }
+        
+        // Check if items were reordered
+        if (response.Contains("✅") && response.Contains("reorder"))
+        {
+            actions.Add(new ChatAction
+            {
+                Type = "items_reordered",
+                Message = "Items reordered successfully"
             });
         }
         

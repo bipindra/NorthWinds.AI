@@ -1,0 +1,90 @@
+@model Northwind.Portal.Domain.DTOs.ProductDto
+@{
+    ViewData["Title"] = "Product Details";
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-box me-2"></i>Product Details</h5>
+        <div>
+            <a asp-action="Index" class="btn btn-secondary btn-sm me-2">
+                <i class="fas fa-arrow-left me-1"></i>Back to List
+            </a>
+            <a asp-action="Edit" asp-route-id="@Model.ProductId" class="btn btn-primary btn-sm">
+                <i class="fas fa-edit me-1"></i>Edit
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <dl class="row">
+                    <dt class="col-sm-4">Product ID</dt>
+                    <dd class="col-sm-8">@Model.ProductId</dd>
+
+                    <dt class="col-sm-4">Product Name</dt>
+                    <dd class="col-sm-8"><strong>@Model.ProductName</strong></dd>
+
+                    <dt class="col-sm-4">Description</dt>
+                    <dd class="col-sm-8">@(string.IsNullOrEmpty(Model.Description) ? "-" : Model.Description)</dd>
+
+                    <dt class="col-sm-4">Category</dt>
+                    <dd class="col-sm-8">@(Model.CategoryName ?? "-")</dd>
+
+                    <dt class="col-sm-4">Supplier</dt>
+                    <dd class="col-sm-8">@(Model.SupplierName ?? "-")</dd>
+
+                    <dt class="col-sm-4">Quantity Per Unit</dt>
+                    <dd class="col-sm-8">@(Model.QuantityPerUnit ?? "-")</dd>
+                </dl>
+            </div>
+            <div class="col-md-6">
+                <dl class="row">
+                    <dt class="col-sm-4">Unit Price</dt>
+                    <dd class="col-sm-8">
+                        @if (Model.UnitPrice.HasValue)
+                        {
+                            <strong class="text-success">$@Model.UnitPrice.Value.ToString("F2")</strong>
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4">Units In Stock</dt>
+                    <dd class="col-sm-8">
+                        @if (Model.UnitsInStock.HasValue)
+                        {
+                            <span class="badge @(Model.UnitsInStock.Value > 0 ? "bg-success" : "bg-danger")">
+                                @Model.UnitsInStock.Value
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4">Units On Order</dt>
+                    <dd class="col-sm-8">@(Model.UnitsOnOrder?.ToString() ?? "-")</dd>
+
+                    <dt class="col-sm-4">Reorder Level</dt>
+                    <dd class="col-sm-8">@(Model.ReorderLevel?.ToString() ?? "-")</dd>
+
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8">
+                        @if (Model.Discontinued)
+                        {
+                            <span class="badge bg-danger">Discontinued</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success">Active</span>
+                        }
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>

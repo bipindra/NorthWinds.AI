@@ -4,6 +4,7 @@ public class ProductDto
 {
     public int ProductId { get; set; }
     public string ProductName { get; set; } = null!;
+    public string? Description { get; set; }
     public int? SupplierId { get; set; }
     public string? SupplierName { get; set; }
     public int? CategoryId { get; set; }
