@@ -5,6 +5,7 @@ WORKDIR /src
 # Copy solution and project files
 COPY ["src/Northwind.Portal.Domain/Northwind.Portal.Domain.csproj", "src/Northwind.Portal.Domain/"]
 COPY ["src/Northwind.Portal.Data/Northwind.Portal.Data.csproj", "src/Northwind.Portal.Data/"]
+COPY ["src/Northwind.Portal.AI/Northwind.Portal.AI.csproj", "src/Northwind.Portal.AI/"]
 COPY ["src/Northwind.Portal.Web/Northwind.Portal.Web.csproj", "src/Northwind.Portal.Web/"]
 
 # Restore dependencies

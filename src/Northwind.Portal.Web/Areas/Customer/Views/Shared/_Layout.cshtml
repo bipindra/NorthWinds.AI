@@ -118,6 +118,43 @@
         </div>
     </div>
 
+    <!-- Floating AI Chat Widget -->
+    <div id="chatWidget" class="chat-widget" style="display: none;">
+        <div class="chat-widget-header">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-comments me-2"></i>
+                <strong>AI Assistant</strong>
+            </div>
+            <button type="button" class="btn btn-link btn-sm p-0 text-white" id="chatWidgetMinimize">
+                <i class="fas fa-minus"></i>
+            </button>
+        </div>
+        <div class="chat-widget-body" id="chatWidgetBody">
+            <div id="chatMessages" class="chat-messages">
+                <div class="chat-message bot-message">
+                    <strong>Assistant:</strong> Hello! I'm your AI assistant. How can I help you with your Northwind Portal today?
+                </div>
+            </div>
+        </div>
+        <div class="chat-widget-footer">
+            <form id="chatWidgetForm">
+                @Html.AntiForgeryToken()
+                <div class="input-group">
+                    <input type="text" id="chatWidgetInput" class="form-control form-control-sm" placeholder="Type your message..." autocomplete="off" />
+                    <button type="submit" class="btn btn-primary btn-sm" id="chatWidgetSend">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Chat Widget Toggle Button (Fixed Bottom Right) -->
+    <button type="button" class="btn btn-primary chat-widget-toggle" id="chatWidgetToggle" title="Open AI Chat">
+        <i class="fas fa-comments"></i>
+        <span class="chat-widget-badge" id="chatWidgetBadge" style="display: none;">1</span>
+    </button>
+
     <!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <!-- jQuery -->
@@ -174,6 +211,221 @@
             $(document).on('click', 'a[href*="Cart/Add"], form[action*="Cart/Add"]', function() {
                 setTimeout(updateCartCount, 500);
             });
+
+            // Chat Widget Functionality
+            const chatWidget = $('#chatWidget');
+            const chatWidgetToggle = $('#chatWidgetToggle');
+            const chatWidgetMinimize = $('#chatWidgetMinimize');
+            const chatWidgetForm = $('#chatWidgetForm');
+            const chatWidgetInput = $('#chatWidgetInput');
+            const chatWidgetBody = $('#chatWidgetBody');
+            const chatMessages = $('#chatMessages');
+            let isChatMinimized = false;
+
+            // Function to toggle chat widget
+            function toggleChatWidget() {
+                if (chatWidget.is(':visible') && !chatWidget.hasClass('minimized')) {
+                    chatWidget.fadeOut();
+                } else {
+                    chatWidget.removeClass('minimized');
+                    chatWidget.fadeIn();
+                    chatWidgetInput.focus();
+                }
+            }
+
+            // Chat Icon Button (in navbar) - trigger chat widget
+            $('#chatIconBtn').on('click', function(e) {
+                e.preventDefault();
+                toggleChatWidget();
+            });
+
+            chatWidgetToggle.on('click', function() {
+                if (chatWidget.is(':visible')) {
+                    chatWidget.fadeOut();
+                } else {
+                    chatWidget.fadeIn();
+                    chatWidgetInput.focus();
+                }
+            });
+
+            chatWidgetMinimize.on('click', function() {
+                chatWidget.toggleClass('minimized');
+                isChatMinimized = !isChatMinimized;
+                if (!isChatMinimized) {
+                    chatWidgetInput.focus();
+                }
+            });
+
+            chatWidgetForm.on('submit', async function(e) {
+                e.preventDefault();
+                
+                const message = chatWidgetInput.val().trim();
+                if (!message) return;
+
+                chatWidgetInput.prop('disabled', true);
+                $('#chatWidgetSend').prop('disabled', true);
+
+                addChatMessage('You', message, 'user-message');
+                chatWidgetInput.val('');
+
+                const typingId = addChatMessage('Assistant', 'Typing...', 'bot-message typing');
+
+                try {
+                    const token = $('input[name="__RequestVerificationToken"]').val();
+                    const response = await fetch('@Url.Action("SendMessage", "Chat", new { area = "Customer" })', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'RequestVerificationToken': token
+                        },
+                        body: JSON.stringify({ message: message })
+                    });
+
+                    const data = await response.json();
+                    $(`#${typingId}`).remove();
+
+                    if (data.success) {
+                        addChatMessage('Assistant', data.message, 'bot-message');
+                        
+                        if (data.actions && data.actions.length > 0) {
+                            data.actions.forEach(action => {
+                                if (action.type === 'product_added' && action.data) {
+                                    const productName = action.data.productName || 'Product';
+                                    const description = action.data.description || '';
+                                    showProductToast(productName, description);
+                                    updateCartCount();
+                                }
+                            });
+                        }
+                    } else {
+                        addChatMessage('Assistant', data.message || 'Sorry, I encountered an error.', 'bot-message error');
+                    }
+                } catch (error) {
+                    $(`#${typingId}`).remove();
+                    addChatMessage('Assistant', 'Sorry, I encountered an error. Please try again.', 'bot-message error');
+                    console.error('Error:', error);
+                } finally {
+                    chatWidgetInput.prop('disabled', false);
+                    $('#chatWidgetSend').prop('disabled', false);
+                    chatWidgetInput.focus();
+                }
+            });
+
+            function addChatMessage(sender, message, className) {
+                const messageId = 'chat-msg-' + Date.now();
+                const isUser = className.includes('user-message');
+                const formattedMessage = escapeHtml(message).replace(/\n/g, '<br>');
+                const messageHtml = `
+                    <div id="${messageId}" class="chat-message ${className}">
+                        <strong>${sender}:</strong> ${formattedMessage}
+                    </div>
+                `;
+                chatMessages.append(messageHtml);
+                chatWidgetBody.scrollTop(chatWidgetBody[0].scrollHeight);
+                return messageId;
+            }
+
+            function escapeHtml(text) {
+                const map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                };
+                return text.replace(/[&<>"']/g, m => map[m]);
+            }
+
+            function showProductToast(productName, description) {
+                const toast = $(`
+                    <div class="toast-notification success">
+                        <div class="toast-notification-header">
+                            <i class="fas fa-check-circle me-2"></i>Product Added to Cart
+                        </div>
+                        <div class="toast-notification-body">
+                            <strong>${escapeHtml(productName)}</strong>
+                            ${description ? '<br><small>' + escapeHtml(description) + '</small>' : ''}
+                        </div>
+                    </div>
+                `);
+                
+                if ($('.toast-container').length === 0) {
+                    $('body').append('<div class="toast-container"></div>');
+                }
+                
+                $('.toast-container').append(toast);
+                
+                setTimeout(() => {
+                    toast.fadeOut(() => toast.remove());
+                }, 5000);
+            }
+
+            // Cart Hover Popup
+            const cartIconContainer = $('#cartIconContainer');
+            const cartPopup = $('#cartPopup');
+            let cartHoverTimeout;
+
+            cartIconContainer.on('mouseenter', function() {
+                clearTimeout(cartHoverTimeout);
+                loadCartPopup();
+                cartPopup.fadeIn(200);
+            });
+
+            cartIconContainer.on('mouseleave', function() {
+                cartHoverTimeout = setTimeout(() => {
+                    cartPopup.fadeOut(200);
+                }, 300);
+            });
+
+            cartPopup.on('mouseenter', function() {
+                clearTimeout(cartHoverTimeout);
+            });
+
+            cartPopup.on('mouseleave', function() {
+                cartPopup.fadeOut(200);
+            });
+
+            async function loadCartPopup() {
+                try {
+                    const response = await fetch('@Url.Action("GetDetails", "Cart", new { area = "Customer" })');
+                    const data = await response.json();
+                    const popupBody = $('#cartPopupBody');
+                    
+                    if (data.lines && data.lines.length > 0) {
+                        let html = '';
+                        data.lines.forEach(line => {
+                            html += `
+                                <div class="cart-popup-item">
+                                    <div class="cart-popup-item-info">
+                                        <div class="cart-popup-item-name">${escapeHtml(line.productName)}</div>
+                                        ${line.description ? `<div class="cart-popup-item-desc">${escapeHtml(line.description)}</div>` : ''}
+                                        <div class="cart-popup-item-details">
+                                            Qty: ${line.quantity} × $${line.unitPrice.toFixed(2)}
+                                        </div>
+                                    </div>
+                                    <div class="cart-popup-item-price">
+                                        $${line.lineTotal.toFixed(2)}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        html += `
+                            <div class="cart-popup-footer">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <strong>Subtotal:</strong>
+                                    <strong>$${data.subTotal.toFixed(2)}</strong>
+                                </div>
+                            </div>
+                        `;
+                        popupBody.html(html);
+                    } else {
+                        popupBody.html('<div class="cart-popup-empty"><i class="fas fa-shopping-cart fa-2x mb-2"></i><div>Your cart is empty</div></div>');
+                    }
+                } catch (error) {
+                    console.error('Error loading cart popup:', error);
+                    $('#cartPopupBody').html('<div class="cart-popup-empty text-danger">Error loading cart</div>');
+                }
+            }
         });
     </script>
     

@@ -1,0 +1,110 @@
+@model Northwind.Portal.Domain.DTOs.CustomerDto
+@{
+    ViewData["Title"] = "Customer Details";
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-user me-2"></i>Customer: @Model.CompanyName</h5>
+        <div>
+            <a asp-action="Edit" asp-route-id="@Model.CustomerId" class="btn btn-primary btn-sm me-2">
+                <i class="fas fa-edit me-1"></i>Edit
+            </a>
+            <a asp-action="Index" class="btn btn-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>Back to List
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="text-muted mb-3">Company Information</h6>
+                <dl class="row">
+                    <dt class="col-sm-4">Customer ID</dt>
+                    <dd class="col-sm-8"><strong>@Model.CustomerId</strong></dd>
+
+                    <dt class="col-sm-4">Company Name</dt>
+                    <dd class="col-sm-8">@Model.CompanyName</dd>
+
+                    <dt class="col-sm-4">Contact Name</dt>
+                    <dd class="col-sm-8">@(Model.ContactName ?? "-")</dd>
+
+                    <dt class="col-sm-4">Contact Title</dt>
+                    <dd class="col-sm-8">@(Model.ContactTitle ?? "-")</dd>
+                </dl>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-muted mb-3">Address Information</h6>
+                <dl class="row">
+                    <dt class="col-sm-4">Address</dt>
+                    <dd class="col-sm-8">@(Model.Address ?? "-")</dd>
+
+                    <dt class="col-sm-4">City</dt>
+                    <dd class="col-sm-8">@(Model.City ?? "-")</dd>
+
+                    <dt class="col-sm-4">Region</dt>
+                    <dd class="col-sm-8">@(Model.Region ?? "-")</dd>
+
+                    <dt class="col-sm-4">Postal Code</dt>
+                    <dd class="col-sm-8">@(Model.PostalCode ?? "-")</dd>
+
+                    <dt class="col-sm-4">Country</dt>
+                    <dd class="col-sm-8">@(Model.Country ?? "-")</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <h6 class="text-muted mb-3">Contact Information</h6>
+                <dl class="row">
+                    <dt class="col-sm-4">Phone</dt>
+                    <dd class="col-sm-8">@(Model.Phone ?? "-")</dd>
+
+                    <dt class="col-sm-4">Fax</dt>
+                    <dd class="col-sm-8">@(Model.Fax ?? "-")</dd>
+                </dl>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-muted mb-3">Order Statistics</h6>
+                <dl class="row">
+                    <dt class="col-sm-4">Total Orders</dt>
+                    <dd class="col-sm-8"><span class="badge bg-info">@Model.OrderCount</span></dd>
+
+                    <dt class="col-sm-4">Total Spent</dt>
+                    <dd class="col-sm-8">
+                        @if (Model.TotalSpent.HasValue)
+                        {
+                            <strong class="text-success">@Model.TotalSpent.Value.ToString("C")</strong>
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4">Last Order</dt>
+                    <dd class="col-sm-8">
+                        @if (Model.LastOrderDate.HasValue)
+                        {
+                            @Model.LastOrderDate.Value.ToString("MMM dd, yyyy")
+                        }
+                        else
+                        {
+                            <span class="text-muted">Never</span>
+                        }
+                    </dd>
+                </dl>
+            </div>
+        </div>
+
+        @if (Model.OrderCount > 0)
+        {
+            <div class="mt-4">
+                <a asp-area="Admin" asp-controller="AdminOrders" asp-action="Index" asp-route-customerId="@Model.CustomerId" class="btn btn-outline-primary">
+                    <i class="fas fa-shopping-cart me-2"></i>View All Orders (@Model.OrderCount)
+                </a>
+            </div>
+        }
+    </div>
+</div>

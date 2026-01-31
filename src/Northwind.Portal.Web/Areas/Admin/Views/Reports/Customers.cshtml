@@ -1,0 +1,77 @@
+@model Northwind.Portal.Domain.DTOs.CustomerReportDto
+@{
+    ViewData["Title"] = "Customer Report";
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-users me-2"></i>Customer Report</h5>
+        <a asp-action="Index" class="btn btn-sm btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+        </a>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h6>Total Customers</h6>
+                        <h3>@Model.TotalCustomers</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h6>Active Customers</h6>
+                        <h3>@Model.ActiveCustomers</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h6>New This Month</h6>
+                        <h3>@Model.NewCustomersThisMonth</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Top Customers by Revenue</h6>
+            </div>
+            <div class="card-body">
+                @if (Model.TopCustomers.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Customer</th>
+                                    <th>Orders</th>
+                                    <th>Total Spent</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var customer in Model.TopCustomers)
+                                {
+                                    <tr>
+                                        <td><strong>@customer.CustomerName</strong></td>
+                                        <td>@customer.OrderCount</td>
+                                        <td><strong class="text-success">@customer.TotalSpent.ToString("C")</strong></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center">No customer data available</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,94 @@
+@model Northwind.Portal.Domain.DTOs.SalesReportDto
+@{
+    ViewData["Title"] = "Sales Report";
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Sales Report</h5>
+        <a asp-action="Index" class="btn btn-sm btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+        </a>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3 mb-4">
+            <div class="col-md-4">
+                <label class="form-label">Start Date</label>
+                <input type="date" name="startDate" class="form-control" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">End Date</label>
+                <input type="date" name="endDate" class="form-control" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-filter me-1"></i>Filter
+                </button>
+            </div>
+        </form>
+
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h6>Total Sales</h6>
+                        <h3>@Model.TotalSales.ToString("C")</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h6>Total Orders</h6>
+                        <h3>@Model.TotalOrders</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h6>Average Order Value</h6>
+                        <h3>@Model.AverageOrderValue.ToString("C")</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Daily Sales</h6>
+            </div>
+            <div class="card-body">
+                @if (Model.DailySales.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Orders</th>
+                                    <th>Sales</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var day in Model.DailySales)
+                                {
+                                    <tr>
+                                        <td>@day.Date.ToString("MMM dd, yyyy")</td>
+                                        <td>@day.OrderCount</td>
+                                        <td><strong>@day.Sales.ToString("C")</strong></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center">No sales data available for the selected period</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>

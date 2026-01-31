@@ -22,13 +22,43 @@ public class OrdersController : Controller
         _logger = logger;
     }
 
-    public async Task<IActionResult> Index()
+    public async Task<IActionResult> Index(string? status = null, string? searchTerm = null, int page = 1)
     {
         var customerId = await _tenantContext.GetCurrentCustomerIdAsync();
         if (string.IsNullOrEmpty(customerId))
             return Unauthorized();
 
-        var orders = await _orderService.GetOrdersByCustomerIdAsync(customerId);
+        var allOrders = await _orderService.GetOrdersByCustomerIdAsync(customerId);
+        
+        // Filter by status
+        if (!string.IsNullOrEmpty(status) && Enum.TryParse<OrderPortalStatus>(status, out var statusEnum))
+        {
+            allOrders = allOrders.Where(o => o.CurrentStatus == statusEnum);
+        }
+
+        // Search by order ID or product name
+        if (!string.IsNullOrEmpty(searchTerm))
+        {
+            var searchLower = searchTerm.ToLowerInvariant();
+            allOrders = allOrders.Where(o => 
+                o.OrderId.ToString().Contains(searchLower) ||
+                o.OrderDetails.Any(od => od.ProductName.ToLowerInvariant().Contains(searchLower)));
+        }
+
+        // Pagination
+        var pageSize = 10;
+        var totalOrders = allOrders.Count();
+        var orders = allOrders
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        ViewBag.Status = status;
+        ViewBag.SearchTerm = searchTerm;
+        ViewBag.CurrentPage = page;
+        ViewBag.TotalPages = (int)Math.Ceiling(totalOrders / (double)pageSize);
+        ViewBag.TotalOrders = totalOrders;
+
         return View(orders);
     }
 

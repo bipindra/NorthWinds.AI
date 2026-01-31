@@ -72,6 +72,38 @@ public class CartController : Controller
         return Json(new { count });
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetDetails()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Json(new { lines = new List<object>(), subTotal = 0, totalItems = 0 });
+        }
+
+        var cart = await _cartService.GetCartAsync(userId);
+        if (cart == null || !cart.Lines.Any())
+        {
+            return Json(new { lines = new List<object>(), subTotal = 0, totalItems = 0 });
+        }
+
+        return Json(new
+        {
+            lines = cart.Lines.Select(l => new
+            {
+                id = l.Id,
+                productId = l.ProductId,
+                productName = l.ProductName,
+                description = l.Description,
+                quantity = l.Quantity,
+                unitPrice = l.UnitPrice,
+                lineTotal = l.LineTotal
+            }),
+            subTotal = cart.SubTotal,
+            totalItems = cart.TotalItems
+        });
+    }
+
     [HttpPost]
     public async Task<IActionResult> Remove(int cartLineId)
     {

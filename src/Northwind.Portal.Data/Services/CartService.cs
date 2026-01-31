@@ -37,6 +37,7 @@ public class CartService : ICartService
                 Id = cl.Id,
                 ProductId = cl.ProductId,
                 ProductName = cl.Product.ProductName,
+                Description = cl.Product.Description,
                 Quantity = cl.Quantity,
                 UnitPrice = cl.UnitPrice,
                 IsDiscontinued = cl.Product.Discontinued,

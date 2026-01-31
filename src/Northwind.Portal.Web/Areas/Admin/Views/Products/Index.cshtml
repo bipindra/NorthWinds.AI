@@ -190,16 +190,32 @@
                     @{
                         var totalPages = (int)Math.Ceiling((double)Model.TotalCount / Model.PageSize);
                         var currentPage = Model.Page;
+                        var showEllipsis = totalPages > 10;
                         var startPage = Math.Max(1, currentPage - 2);
                         var endPage = Math.Min(totalPages, currentPage + 2);
                     }
 
                     <li class="page-item @(currentPage == 1 ? "disabled" : "")">
-                        <a class="page-link" asp-action="Index" asp-route-page="@(currentPage - 1)" asp-route-categoryId="@ViewBag.CategoryId" asp-route-supplierId="@ViewBag.SupplierId" asp-route-discontinued="@ViewBag.Discontinued" asp-route-inStockOnly="@ViewBag.InStockOnly" asp-route-searchTerm="@ViewBag.SearchTerm">
+                        <a class="page-link" asp-action="Index" asp-route-page="@(currentPage - 1)" asp-route-categoryId="@ViewBag.CategoryId" asp-route-supplierId="@ViewBag.SupplierId" asp-route-discontinued="@ViewBag.Discontinued" asp-route-inStockOnly="@ViewBag.InStockOnly" asp-route-searchTerm="@ViewBag.SearchTerm" aria-label="Previous">
                             <i class="fas fa-chevron-left"></i>
                         </a>
                     </li>
 
+                    @* First Page *@
+                    @if (showEllipsis && startPage > 1)
+                    {
+                        <li class="page-item @(1 == currentPage ? "active" : "")">
+                            <a class="page-link" asp-action="Index" asp-route-page="1" asp-route-categoryId="@ViewBag.CategoryId" asp-route-supplierId="@ViewBag.SupplierId" asp-route-discontinued="@ViewBag.Discontinued" asp-route-inStockOnly="@ViewBag.InStockOnly" asp-route-searchTerm="@ViewBag.SearchTerm">1</a>
+                        </li>
+                        @if (startPage > 2)
+                        {
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        }
+                    }
+
+                    @* Pages around current *@
                     @for (int i = startPage; i <= endPage; i++)
                     {
                         <li class="page-item @(i == currentPage ? "active" : "")">
@@ -207,8 +223,22 @@
                         </li>
                     }
 
+                    @* Last Page *@
+                    @if (showEllipsis && endPage < totalPages)
+                    {
+                        @if (endPage < totalPages - 1)
+                        {
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        }
+                        <li class="page-item @(totalPages == currentPage ? "active" : "")">
+                            <a class="page-link" asp-action="Index" asp-route-page="@totalPages" asp-route-categoryId="@ViewBag.CategoryId" asp-route-supplierId="@ViewBag.SupplierId" asp-route-discontinued="@ViewBag.Discontinued" asp-route-inStockOnly="@ViewBag.InStockOnly" asp-route-searchTerm="@ViewBag.SearchTerm">@totalPages</a>
+                        </li>
+                    }
+
                     <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
-                        <a class="page-link" asp-action="Index" asp-route-page="@(currentPage + 1)" asp-route-categoryId="@ViewBag.CategoryId" asp-route-supplierId="@ViewBag.SupplierId" asp-route-discontinued="@ViewBag.Discontinued" asp-route-inStockOnly="@ViewBag.InStockOnly" asp-route-searchTerm="@ViewBag.SearchTerm">
+                        <a class="page-link" asp-action="Index" asp-route-page="@(currentPage + 1)" asp-route-categoryId="@ViewBag.CategoryId" asp-route-supplierId="@ViewBag.SupplierId" asp-route-discontinued="@ViewBag.Discontinued" asp-route-inStockOnly="@ViewBag.InStockOnly" asp-route-searchTerm="@ViewBag.SearchTerm" aria-label="Next">
                             <i class="fas fa-chevron-right"></i>
                         </a>
                     </li>

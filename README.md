@@ -182,11 +182,37 @@ dotnet ef database update --project src/Northwind.Portal.Data/Northwind.Portal.D
 
 ## Docker
 
+### Local Development
+
 ```bash
 docker-compose up -d
 ```
 
 Exposes app on `http://localhost:8080`
+
+### Production Image
+
+The application is automatically built and pushed to GitHub Container Registry via GitHub Actions.
+
+**Pull the latest image:**
+```bash
+docker pull ghcr.io/bipindra/northwinds.ai:latest
+```
+
+**Run the container:**
+```bash
+docker run -d -p 8080:8080 \
+  -e ConnectionStrings__NorthwindsDb="your-connection-string" \
+  -e ASPNETCORE_ENVIRONMENT=Production \
+  ghcr.io/bipindra/northwinds.ai:latest
+```
+
+**Available tags:**
+- `latest` - Latest build from master branch
+- `master-<sha>` - Specific commit
+- `v1.0.0` - Semantic version tags
+
+**Image registry:** `ghcr.io/bipindra/northwinds.ai`
 
 ## License
 

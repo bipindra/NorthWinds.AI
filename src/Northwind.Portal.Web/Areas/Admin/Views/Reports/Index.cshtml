@@ -1,14 +1,262 @@
+@model Northwind.Portal.Domain.DTOs.DashboardStatsDto
 @{
-    ViewData["Title"] = "Reports";
+    ViewData["Title"] = "Dashboard & Reports";
 }
 
-<div class="card shadow-sm">
-    <div class="card-header bg-white">
-        <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Reports Dashboard</h5>
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Total Orders</h6>
+                        <h3 class="mb-0">@Model.TotalOrders</h3>
+                    </div>
+                    <div class="text-primary">
+                        <i class="fas fa-shopping-cart fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    <div class="card-body">
-        <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>Reports dashboard - to be implemented
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Total Revenue</h6>
+                        <h3 class="mb-0">@Model.TotalRevenue.ToString("C")</h3>
+                    </div>
+                    <div class="text-success">
+                        <i class="fas fa-dollar-sign fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Total Customers</h6>
+                        <h3 class="mb-0">@Model.TotalCustomers</h3>
+                    </div>
+                    <div class="text-info">
+                        <i class="fas fa-users fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Total Products</h6>
+                        <h3 class="mb-0">@Model.TotalProducts</h3>
+                    </div>
+                    <div class="text-warning">
+                        <i class="fas fa-box fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Order Status Distribution</h6>
+            </div>
+            <div class="card-body">
+                @if (Model.OrderStatusCounts.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th>Count</th>
+                                    <th>Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var status in Model.OrderStatusCounts)
+                                {
+                                    var percentage = Model.TotalOrders > 0 ? (status.Count * 100.0 / Model.TotalOrders) : 0;
+                                    <tr>
+                                        <td><span class="badge bg-secondary">@status.Status</span></td>
+                                        <td>@status.Count</td>
+                                        <td>
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar" role="progressbar" style="width: @percentage%">@percentage.ToString("F1")%</div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center">No order data available</p>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>Monthly Revenue</h6>
+            </div>
+            <div class="card-body">
+                @if (Model.MonthlyRevenues.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Month</th>
+                                    <th>Revenue</th>
+                                    <th>Orders</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var month in Model.MonthlyRevenues)
+                                {
+                                    <tr>
+                                        <td>@month.Month</td>
+                                        <td><strong>@month.Revenue.ToString("C")</strong></td>
+                                        <td>@month.OrderCount</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center">No revenue data available</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-star me-2"></i>Top Customers</h6>
+                <a asp-action="Customers" class="btn btn-sm btn-link">View All</a>
+            </div>
+            <div class="card-body">
+                @if (Model.TopCustomers.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Customer</th>
+                                    <th>Orders</th>
+                                    <th>Total Spent</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var customer in Model.TopCustomers)
+                                {
+                                    <tr>
+                                        <td>@customer.CustomerName</td>
+                                        <td>@customer.OrderCount</td>
+                                        <td><strong>@customer.TotalSpent.ToString("C")</strong></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center">No customer data available</p>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-box me-2"></i>Top Products</h6>
+                <a asp-action="Products" class="btn btn-sm btn-link">View All</a>
+            </div>
+            <div class="card-body">
+                @if (Model.TopProducts.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Sold</th>
+                                    <th>Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var product in Model.TopProducts)
+                                {
+                                    <tr>
+                                        <td>@product.ProductName</td>
+                                        <td>@product.QuantitySold</td>
+                                        <td><strong>@product.Revenue.ToString("C")</strong></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center">No product data available</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="fas fa-link me-2"></i>Quick Links</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <a asp-action="Sales" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-chart-bar me-2"></i>Sales Report
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a asp-action="Customers" class="btn btn-outline-info w-100">
+                            <i class="fas fa-users me-2"></i>Customer Report
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a asp-action="Products" class="btn btn-outline-warning w-100">
+                            <i class="fas fa-box me-2"></i>Product Report
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a asp-area="Admin" asp-controller="AdminOrders" asp-action="Index" class="btn btn-outline-success w-100">
+                            <i class="fas fa-truck me-2"></i>Manage Orders
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>

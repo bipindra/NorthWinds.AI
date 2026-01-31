@@ -5,16 +5,51 @@
 }
 
 <div class="card shadow-sm">
-    <div class="card-header bg-white">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="fas fa-receipt me-2"></i>Order History</h5>
+        <div>
+            <span class="text-muted me-3">Total: @ViewBag.TotalOrders orders</span>
+        </div>
     </div>
     <div class="card-body">
+        <!-- Filters -->
+        <form method="get" class="row g-3 mb-4">
+            <div class="col-md-4">
+                <input type="text" name="searchTerm" class="form-control" placeholder="Search by Order ID or Product..." value="@ViewBag.SearchTerm" />
+            </div>
+            <div class="col-md-3">
+                <select name="status" class="form-select">
+                    <option value="">All Statuses</option>
+                    <option value="Submitted" selected="@(ViewBag.Status == "Submitted")">Submitted</option>
+                    <option value="PendingApproval" selected="@(ViewBag.Status == "PendingApproval")">Pending Approval</option>
+                    <option value="Approved" selected="@(ViewBag.Status == "Approved")">Approved</option>
+                    <option value="Picking" selected="@(ViewBag.Status == "Picking")">Picking</option>
+                    <option value="Shipped" selected="@(ViewBag.Status == "Shipped")">Shipped</option>
+                    <option value="Cancelled" selected="@(ViewBag.Status == "Cancelled")">Cancelled</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-search me-1"></i>Filter
+                </button>
+            </div>
+            <div class="col-md-3">
+                @if (!string.IsNullOrEmpty(ViewBag.SearchTerm) || !string.IsNullOrEmpty(ViewBag.Status))
+                {
+                    <a asp-action="Index" class="btn btn-secondary w-100">
+                        <i class="fas fa-times me-1"></i>Clear
+                    </a>
+                }
+            </div>
+        </form>
+
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
                     <tr>
                         <th>Order ID</th>
                         <th>Date</th>
+                        <th>Items</th>
                         <th>Status</th>
                         <th>Total</th>
                         <th>Actions</th>
@@ -28,6 +63,9 @@
                             <tr>
                                 <td><strong>#@order.OrderId</strong></td>
                                 <td>@order.OrderDate?.ToString("MMM dd, yyyy")</td>
+                                <td>
+                                    <small class="text-muted">@order.OrderDetails.Count item(s)</small>
+                                </td>
                                 <td>
                                     @{
                                         var statusBadgeClass = order.CurrentStatus switch
@@ -56,7 +94,7 @@
                     else
                     {
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-4">
+                            <td colspan="6" class="text-center text-muted py-4">
                                 <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
                                 No orders found
                             </td>
@@ -65,5 +103,71 @@
                 </tbody>
             </table>
         </div>
+
+        <!-- Pagination -->
+        @if (ViewBag.TotalPages > 1)
+        {
+            <nav aria-label="Order pagination">
+                <ul class="pagination justify-content-center">
+                    @{
+                        var currentPage = (int)ViewBag.CurrentPage;
+                        var totalPages = (int)ViewBag.TotalPages;
+                        var showEllipsis = totalPages > 10;
+                        var startPage = Math.Max(1, currentPage - 2);
+                        var endPage = Math.Min(totalPages, currentPage + 2);
+                    }
+                    
+                    @* Previous Button *@
+                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                        <a class="page-link" href="?page=@(currentPage - 1)&status=@ViewBag.Status&searchTerm=@ViewBag.SearchTerm" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    
+                    @* First Page *@
+                    @if (showEllipsis && startPage > 1)
+                    {
+                        <li class="page-item @(1 == currentPage ? "active" : "")">
+                            <a class="page-link" href="?page=1&status=@ViewBag.Status&searchTerm=@ViewBag.SearchTerm">1</a>
+                        </li>
+                        @if (startPage > 2)
+                        {
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        }
+                    }
+                    
+                    @* Pages around current *@
+                    @for (int i = startPage; i <= endPage; i++)
+                    {
+                        <li class="page-item @(i == currentPage ? "active" : "")">
+                            <a class="page-link" href="?page=@i&status=@ViewBag.Status&searchTerm=@ViewBag.SearchTerm">@i</a>
+                        </li>
+                    }
+                    
+                    @* Last Page *@
+                    @if (showEllipsis && endPage < totalPages)
+                    {
+                        @if (endPage < totalPages - 1)
+                        {
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        }
+                        <li class="page-item @(totalPages == currentPage ? "active" : "")">
+                            <a class="page-link" href="?page=@totalPages&status=@ViewBag.Status&searchTerm=@ViewBag.SearchTerm">@totalPages</a>
+                        </li>
+                    }
+                    
+                    @* Next Button *@
+                    <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                        <a class="page-link" href="?page=@(currentPage + 1)&status=@ViewBag.Status&searchTerm=@ViewBag.SearchTerm" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        }
     </div>
 </div>

@@ -89,6 +89,8 @@ builder.Services.AddScoped<ICartRepository, CartRepository>();
 builder.Services.AddScoped<ICatalogService, Northwind.Portal.Data.Services.CatalogService>();
 builder.Services.AddScoped<IOrderService, Northwind.Portal.Data.Services.OrderService>();
 builder.Services.AddScoped<ICartService, Northwind.Portal.Data.Services.CartService>();
+builder.Services.AddScoped<IReportsService, Northwind.Portal.Data.Services.ReportsService>();
+builder.Services.AddScoped<ICustomerService, Northwind.Portal.Data.Services.CustomerService>();
 
 // AI Services
 // Load LLM configuration

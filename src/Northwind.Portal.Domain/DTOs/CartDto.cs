@@ -13,6 +13,7 @@ public class CartLineDto
     public int Id { get; set; }
     public int ProductId { get; set; }
     public string ProductName { get; set; } = null!;
+    public string? Description { get; set; }
     public short Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal LineTotal => UnitPrice * Quantity;

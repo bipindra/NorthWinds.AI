@@ -18,6 +18,7 @@ public class ChatProcessor : IChatProcessor
     private readonly NorthwindDbContext? _northwindContext;
     private readonly IProductEmbeddingService? _embeddingService;
     private readonly string? _userId;
+    private object? _lastAddedProduct;
 
     public ChatProcessor(
         ILogger<ChatProcessor> logger, 
@@ -242,6 +243,8 @@ Always be helpful, friendly, and provide clear confirmations when actions are co
                 var result = await AddToCartAsync(productInfo.ProductId.Value, quantity, userId);
                 if (result.Success)
                 {
+                    // Store product info in actions for toast notification
+                    _lastAddedProduct = new { productName = result.ProductName, description = result.Description };
                     return $"{aiResponse}\n\n✅ Successfully added {quantity} x {result.ProductName} to your cart!";
                 }
                 else
@@ -261,6 +264,8 @@ Always be helpful, friendly, and provide clear confirmations when actions are co
                     var result = await AddToCartAsync(product.ProductId, quantity, userId);
                     if (result.Success)
                     {
+                        // Store product info in actions for toast notification
+                        _lastAddedProduct = new { productName = result.ProductName, description = result.Description };
                         return $"{aiResponse}\n\n✅ Successfully added {quantity} x {result.ProductName} to your cart!";
                     }
                     else
@@ -529,7 +534,7 @@ Always be helpful, friendly, and provide clear confirmations when actions are co
         }
     }
 
-    private async Task<(bool Success, string ProductName, string? ErrorMessage)> AddToCartAsync(int productId, int quantity, string? userId = null)
+    private async Task<(bool Success, string ProductName, string? Description, string? ErrorMessage)> AddToCartAsync(int productId, int quantity, string? userId = null)
     {
         var currentUserId = userId ?? _userId;
         _logger.LogInformation("AddToCartAsync called - ProductId: {ProductId}, Quantity: {Quantity}, UserId: {UserId}", 
@@ -538,13 +543,13 @@ Always be helpful, friendly, and provide clear confirmations when actions are co
         if (_cartService == null)
         {
             _logger.LogError("Cart service is null");
-            return (false, string.Empty, "Cart service not available");
+            return (false, string.Empty, null, "Cart service not available");
         }
         
         if (string.IsNullOrEmpty(currentUserId))
         {
             _logger.LogError("User ID is null or empty");
-            return (false, string.Empty, "User ID not available");
+            return (false, string.Empty, null, "User ID not available");
         }
         
         try
@@ -562,18 +567,18 @@ Always be helpful, friendly, and provide clear confirmations when actions are co
             
             if (success)
             {
-                return (true, product?.ProductName ?? $"Product {productId}", null);
+                return (true, product?.ProductName ?? $"Product {productId}", product?.Description, null);
             }
             else
             {
                 _logger.LogWarning("Failed to add product {ProductId} to cart for user {UserId}", productId, currentUserId);
-                return (false, string.Empty, "Failed to add product to cart. Product may be discontinued or out of stock.");
+                return (false, string.Empty, null, "Failed to add product to cart. Product may be discontinued or out of stock.");
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error adding product {ProductId} to cart for user {UserId}", productId, currentUserId);
-            return (false, string.Empty, ex.Message);
+            return (false, string.Empty, null, ex.Message);
         }
     }
 
@@ -971,11 +976,30 @@ Always be helpful, friendly, and provide clear confirmations when actions are co
         // Check if response indicates a product was added
         if (response.Contains("✅") && response.Contains("added") && response.Contains("cart"))
         {
-            actions.Add(new ChatAction
+            var action = new ChatAction
             {
                 Type = "product_added",
                 Message = "Product added to cart successfully"
-            });
+            };
+            
+            // Include product details if available
+            if (_lastAddedProduct != null)
+            {
+                var productData = new Dictionary<string, object>();
+                var productType = _lastAddedProduct.GetType();
+                var nameProp = productType.GetProperty("productName");
+                var descProp = productType.GetProperty("description");
+                
+                if (nameProp != null)
+                    productData["productName"] = nameProp.GetValue(_lastAddedProduct)?.ToString() ?? "";
+                if (descProp != null)
+                    productData["description"] = descProp.GetValue(_lastAddedProduct)?.ToString() ?? "";
+                
+                action.Data = productData;
+                _lastAddedProduct = null; // Clear after use
+            }
+            
+            actions.Add(action);
         }
         
         // Check if items were reordered
