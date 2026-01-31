@@ -159,20 +159,49 @@ public class DbInitializer
             if (result.Succeeded)
             {
                 await _userManager.AddToRoleAsync(customer1User, "CustomerUser");
+            }
+        }
+        else
+        {
+            // Ensure user has the role even if they already exist
+            if (!await _userManager.IsInRoleAsync(customer1User, "CustomerUser"))
+            {
+                await _userManager.AddToRoleAsync(customer1User, "CustomerUser");
+            }
+        }
 
-                // Map to customer ALFKI
+        // Ensure customer mapping exists
+        if (customer1User != null)
+        {
+            var existingMap = await _context.PortalUserCustomerMaps
+                .FirstOrDefaultAsync(m => m.UserId == customer1User.Id);
+            
+            if (existingMap == null)
+            {
+                // Ensure customer exists first
                 var customer = await _context.Customers.FindAsync("ALFKI");
-                if (customer != null)
+                if (customer == null)
                 {
-                    var map = new PortalUserCustomerMap
-                    {
-                        UserId = customer1User.Id,
-                        CustomerId = "ALFKI",
-                        CreatedAt = DateTime.UtcNow
+                    customer = new Customer 
+                    { 
+                        CustomerId = "ALFKI", 
+                        CompanyName = "Alfreds Futterkiste", 
+                        ContactName = "Maria Anders", 
+                        City = "Berlin", 
+                        Country = "Germany" 
                     };
-                    _context.PortalUserCustomerMaps.Add(map);
+                    _context.Customers.Add(customer);
                     await _context.SaveChangesAsync();
                 }
+
+                var map = new PortalUserCustomerMap
+                {
+                    UserId = customer1User.Id,
+                    CustomerId = "ALFKI",
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.PortalUserCustomerMaps.Add(map);
+                await _context.SaveChangesAsync();
             }
         }
 
@@ -191,20 +220,49 @@ public class DbInitializer
             if (result.Succeeded)
             {
                 await _userManager.AddToRoleAsync(customer2User, "CustomerUser");
+            }
+        }
+        else
+        {
+            // Ensure user has the role even if they already exist
+            if (!await _userManager.IsInRoleAsync(customer2User, "CustomerUser"))
+            {
+                await _userManager.AddToRoleAsync(customer2User, "CustomerUser");
+            }
+        }
 
-                // Map to customer ANATR
+        // Ensure customer mapping exists
+        if (customer2User != null)
+        {
+            var existingMap = await _context.PortalUserCustomerMaps
+                .FirstOrDefaultAsync(m => m.UserId == customer2User.Id);
+            
+            if (existingMap == null)
+            {
+                // Ensure customer exists first
                 var customer = await _context.Customers.FindAsync("ANATR");
-                if (customer != null)
+                if (customer == null)
                 {
-                    var map = new PortalUserCustomerMap
-                    {
-                        UserId = customer2User.Id,
-                        CustomerId = "ANATR",
-                        CreatedAt = DateTime.UtcNow
+                    customer = new Customer 
+                    { 
+                        CustomerId = "ANATR", 
+                        CompanyName = "Ana Trujillo Emparedados y helados", 
+                        ContactName = "Ana Trujillo", 
+                        City = "México D.F.", 
+                        Country = "Mexico" 
                     };
-                    _context.PortalUserCustomerMaps.Add(map);
+                    _context.Customers.Add(customer);
                     await _context.SaveChangesAsync();
                 }
+
+                var map = new PortalUserCustomerMap
+                {
+                    UserId = customer2User.Id,
+                    CustomerId = "ANATR",
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.PortalUserCustomerMaps.Add(map);
+                await _context.SaveChangesAsync();
             }
         }
     }

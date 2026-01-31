@@ -26,7 +26,11 @@ public class OrdersController : Controller
     {
         var customerId = await _tenantContext.GetCurrentCustomerIdAsync();
         if (string.IsNullOrEmpty(customerId))
-            return Unauthorized();
+        {
+            _logger.LogWarning("User {UserId} attempted to access orders but has no customer mapping", User.Identity?.Name);
+            TempData["Error"] = "Your account is not linked to a customer. Please contact support.";
+            return RedirectToAction("Index", "Catalog", new { area = "Customer" });
+        }
 
         var allOrders = await _orderService.GetOrdersByCustomerIdAsync(customerId);
         
@@ -66,7 +70,11 @@ public class OrdersController : Controller
     {
         var customerId = await _tenantContext.GetCurrentCustomerIdAsync();
         if (string.IsNullOrEmpty(customerId))
-            return Unauthorized();
+        {
+            _logger.LogWarning("User {UserId} attempted to access order {OrderId} but has no customer mapping", User.Identity?.Name, id);
+            TempData["Error"] = "Your account is not linked to a customer. Please contact support.";
+            return RedirectToAction("Index", "Catalog", new { area = "Customer" });
+        }
 
         var order = await _orderService.GetOrderByIdAsync(id, customerId);
         if (order == null)
