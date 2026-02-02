@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Northwind.Portal.Data.Contexts;
+using Northwind.Portal.Data.Helpers;
 using Northwind.Portal.Data.Repositories;
 using Northwind.Portal.Domain.DTOs;
 using Northwind.Portal.Domain.Services;
@@ -31,11 +32,7 @@ else
 }
 
 // Configuration
-var databaseOptions = builder.Configuration.GetSection(DatabaseOptions.SectionName).Get<DatabaseOptions>() 
-    ?? new DatabaseOptions { DbProvider = "SqlServer" };
-
-var connectionString = builder.Configuration.GetConnectionString("NorthwindsDb") 
-    ?? throw new InvalidOperationException("Connection string 'NorthwindsDb' not found. Please set it in User Secrets (Development) or appsettings.json (Production).");
+var (databaseOptions, connectionString) = DatabaseConfigurationHelper.ConfigureDatabase(builder.Configuration);
 
 // Database setup
 switch (databaseOptions.DbProvider)
@@ -49,14 +46,27 @@ switch (databaseOptions.DbProvider)
         break;
     
     case "MariaDB":
-        // Use MariaDB 10.11 as the default server version
-        // You can adjust this version to match your MariaDB server version
-        var serverVersion = new MariaDbServerVersion(new Version(10, 11, 0));
+        var serverVersion = new MariaDbServerVersion(new Version(10, 6, 22));
+        
         builder.Services.AddDbContext<NorthwindDbContext>(options =>
-            options.UseMySql(connectionString, serverVersion));
+            options.UseMySql(connectionString, serverVersion, mySqlOptions =>
+            {
+                mySqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 3,
+                    maxRetryDelay: TimeSpan.FromSeconds(10),
+                    errorNumbersToAdd: null);
+                mySqlOptions.CommandTimeout(60);
+            }));
         
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseMySql(connectionString, serverVersion));
+            options.UseMySql(connectionString, serverVersion, mySqlOptions =>
+            {
+                mySqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 3,
+                    maxRetryDelay: TimeSpan.FromSeconds(10),
+                    errorNumbersToAdd: null);
+                mySqlOptions.CommandTimeout(60);
+            }));
         break;
     
     case "SqlServer":
@@ -324,7 +334,40 @@ builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
 
-// Initialize database
+// Auto-migrate ApplicationDbContext
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var identityContext = services.GetRequiredService<ApplicationDbContext>();
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        
+        logger.LogInformation("Applying migrations for ApplicationDbContext...");
+        identityContext.Database.Migrate();
+        logger.LogInformation("ApplicationDbContext migrations applied successfully");
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while migrating ApplicationDbContext. Falling back to EnsureCreated.");
+        
+        // Fallback to EnsureCreated if migrations fail (e.g., SQL Server types in MariaDB)
+        try
+        {
+            var identityContext = services.GetRequiredService<ApplicationDbContext>();
+            await identityContext.Database.EnsureCreatedAsync();
+            logger.LogInformation("ApplicationDbContext created using EnsureCreated");
+        }
+        catch (Exception ensureEx)
+        {
+            logger.LogError(ensureEx, "Failed to create ApplicationDbContext using EnsureCreated");
+            throw;
+        }
+    }
+}
+
+// Initialize database and seed data
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Northwind.Portal.Data.Helpers;
 
 namespace Northwind.Portal.Data.Contexts;
 
@@ -13,6 +14,7 @@ public class ApplicationDbContext : IdentityDbContext<IdentityUser>
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        MySqlTypeConverter.ApplyMySqlTypeConversions(builder);
     }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Northwind.Portal.Data.Helpers;
 using Northwind.Portal.Domain.Entities;
 
 namespace Northwind.Portal.Data.Contexts;
@@ -299,5 +300,9 @@ public class NorthwindDbContext : DbContext
                 .HasForeignKey(e => e.ProductId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
+
+        // Apply MySQL type conversions AFTER all entity configurations
+        // This ensures SQL Server types are converted to MySQL equivalents
+        MySqlTypeConverter.ApplyMySqlTypeConversions(modelBuilder);
     }
 }

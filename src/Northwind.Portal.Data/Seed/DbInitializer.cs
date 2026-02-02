@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Northwind.Portal.Data.Contexts;
 using Northwind.Portal.Domain.Entities;
 using Northwind.Portal.Domain.Enums;
@@ -12,6 +13,7 @@ public class DbInitializer
     private readonly ApplicationDbContext _identityContext;
     private readonly UserManager<IdentityUser> _userManager;
     private readonly RoleManager<IdentityRole> _roleManager;
+    private readonly Microsoft.Extensions.Logging.ILogger<DbInitializer> _logger;
 
     public DbInitializer(
         NorthwindDbContext context,
@@ -24,6 +26,7 @@ public class DbInitializer
         _identityContext = identityContext;
         _userManager = userManager;
         _roleManager = roleManager;
+        _logger = initializerLogger;
     }
 
     public async Task InitializeAsync()
@@ -52,25 +55,120 @@ public class DbInitializer
         }
 
         // Initialize Northwind database
+        // For MariaDB, skip migrations (they contain SQL Server types) and use EnsureCreated instead
         try
         {
-            var northwindMigrations = await _context.Database.GetPendingMigrationsAsync();
-            if (northwindMigrations.Any())
+            // Check if we're using MySQL/MariaDB by trying to detect the provider
+            var isMySql = false;
+            try
             {
-                await _context.Database.MigrateAsync();
+                var connection = _context.Database.GetDbConnection();
+                isMySql = connection.GetType().Name.Contains("MySql", StringComparison.OrdinalIgnoreCase);
             }
-            else if (!await _context.Database.CanConnectAsync())
+            catch
             {
-                // If database doesn't exist and no migrations, create it
-                await _context.Database.EnsureCreatedAsync();
+                // If we can't detect, try migrations first
+            }
+
+            if (isMySql)
+            {
+                // For MySQL/MariaDB, always use EnsureCreated to avoid SQL Server types in migrations
+                _logger.LogInformation("Detected MySQL/MariaDB provider. Using EnsureCreated() for Northwind database.");
+                var canConnect = await _context.Database.CanConnectAsync();
+                if (!canConnect)
+                {
+                    await _context.Database.EnsureCreatedAsync();
+                    _logger.LogInformation("Northwind database created using EnsureCreated().");
+                }
+                else
+                {
+                    // Check if tables exist
+                    try
+                    {
+                        await _context.Customers.OrderBy(c => c.CustomerId).FirstOrDefaultAsync();
+                        _logger.LogInformation("Northwind database tables already exist.");
+                    }
+                    catch (Exception tableEx) when (tableEx.Message.Contains("doesn't exist") || 
+                                                   (tableEx.Message.Contains("Table") && tableEx.Message.Contains("not found")))
+                    {
+                        _logger.LogWarning("Database exists but tables are missing. Dropping and recreating database.");
+                        await _context.Database.EnsureDeletedAsync();
+                        await _context.Database.EnsureCreatedAsync();
+                        _logger.LogInformation("Northwind database recreated using EnsureCreated().");
+                    }
+                }
+            }
+            else
+            {
+                // For other providers (SQL Server, SQLite), use migrations
+                var northwindMigrations = await _context.Database.GetPendingMigrationsAsync();
+                if (northwindMigrations.Any())
+                {
+                    await _context.Database.MigrateAsync();
+                    _logger.LogInformation("Applied pending Northwind migrations.");
+                }
+                else
+                {
+                    _logger.LogInformation("No pending Northwind migrations to apply.");
+                }
             }
         }
-        catch (InvalidOperationException)
+        catch (Exception ex)
         {
-            // If there are pending model changes (no migrations), use EnsureCreated
-            if (!await _context.Database.CanConnectAsync())
+            // Check if this is a MySQL/MariaDB type error or other migration failure
+            var isMySqlTypeError = ex.Message.Contains("Unknown data type") ||
+                                  ex.Message.Contains("datetime2") ||
+                                  ex.Message.Contains("nvarchar") ||
+                                  ex.Message.Contains("ntext") ||
+                                  ex.Message.Contains("nchar") ||
+                                  ex.Message.Contains("image") ||
+                                  ex.Message.Contains("money") ||
+                                  ex.GetType().Name.Contains("MySql") ||
+                                  ex.GetType().Name.Contains("MySqlConnector");
+            
+            if (isMySqlTypeError || ex is InvalidOperationException)
             {
-                await _context.Database.EnsureCreatedAsync();
+                // If migrations fail (e.g., SQL Server types in MariaDB), fall back to EnsureCreated
+                _logger.LogWarning(ex, "Northwind migrations failed. Attempting to use EnsureCreated() as a fallback.");
+                try
+                {
+                    // Check if database can connect and if critical tables exist
+                    var canConnect = await _context.Database.CanConnectAsync();
+                    if (!canConnect)
+                    {
+                        await _context.Database.EnsureCreatedAsync();
+                        _logger.LogInformation("Northwind database created using EnsureCreated() after migration failure.");
+                    }
+                    else
+                    {
+                        // Database exists, check if tables exist by trying to query a critical table
+                        try
+                        {
+                            await _context.Customers.OrderBy(c => c.CustomerId).FirstOrDefaultAsync();
+                            _logger.LogInformation("Northwind database tables already exist.");
+                        }
+                        catch (Exception tableEx) when (tableEx.Message.Contains("doesn't exist") || 
+                                                       (tableEx.Message.Contains("Table") && tableEx.Message.Contains("not found")))
+                        {
+                            // Tables don't exist, but database does - need to create them
+                            // EnsureCreated won't work if database exists, so we need to drop and recreate
+                            _logger.LogWarning("Database exists but tables are missing. Dropping and recreating database.");
+                            await _context.Database.EnsureDeletedAsync();
+                            await _context.Database.EnsureCreatedAsync();
+                            _logger.LogInformation("Northwind database recreated using EnsureCreated() after migration failure.");
+                        }
+                    }
+                }
+                catch (Exception ensureEx)
+                {
+                    _logger.LogError(ensureEx, "Failed to create Northwind database using EnsureCreated.");
+                    throw;
+                }
+            }
+            else
+            {
+                // Re-throw if it's not a type conversion error
+                throw;
             }
         }
 
@@ -173,35 +271,42 @@ public class DbInitializer
         // Ensure customer mapping exists
         if (customer1User != null)
         {
-            var existingMap = await _context.PortalUserCustomerMaps
-                .FirstOrDefaultAsync(m => m.UserId == customer1User.Id);
-            
-            if (existingMap == null)
+            try
             {
-                // Ensure customer exists first
-                var customer = await _context.Customers.FindAsync("ALFKI");
-                if (customer == null)
+                var existingMap = await _context.PortalUserCustomerMaps
+                    .FirstOrDefaultAsync(m => m.UserId == customer1User.Id);
+                
+                if (existingMap == null)
                 {
-                    customer = new Customer 
-                    { 
-                        CustomerId = "ALFKI", 
-                        CompanyName = "Alfreds Futterkiste", 
-                        ContactName = "Maria Anders", 
-                        City = "Berlin", 
-                        Country = "Germany" 
+                    // Ensure customer exists first
+                    var customer = await _context.Customers.FindAsync("ALFKI");
+                    if (customer == null)
+                    {
+                        customer = new Customer 
+                        { 
+                            CustomerId = "ALFKI", 
+                            CompanyName = "Alfreds Futterkiste", 
+                            ContactName = "Maria Anders", 
+                            City = "Berlin", 
+                            Country = "Germany" 
+                        };
+                        _context.Customers.Add(customer);
+                        await _context.SaveChangesAsync();
+                    }
+
+                    var map = new PortalUserCustomerMap
+                    {
+                        UserId = customer1User.Id,
+                        CustomerId = "ALFKI",
+                        CreatedAt = DateTime.UtcNow
                     };
-                    _context.Customers.Add(customer);
+                    _context.PortalUserCustomerMaps.Add(map);
                     await _context.SaveChangesAsync();
                 }
-
-                var map = new PortalUserCustomerMap
-                {
-                    UserId = customer1User.Id,
-                    CustomerId = "ALFKI",
-                    CreatedAt = DateTime.UtcNow
-                };
-                _context.PortalUserCustomerMaps.Add(map);
-                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error creating customer mapping for customer1@example.com. Skipping.");
             }
         }
 
@@ -234,35 +339,42 @@ public class DbInitializer
         // Ensure customer mapping exists
         if (customer2User != null)
         {
-            var existingMap = await _context.PortalUserCustomerMaps
-                .FirstOrDefaultAsync(m => m.UserId == customer2User.Id);
-            
-            if (existingMap == null)
+            try
             {
-                // Ensure customer exists first
-                var customer = await _context.Customers.FindAsync("ANATR");
-                if (customer == null)
+                var existingMap = await _context.PortalUserCustomerMaps
+                    .FirstOrDefaultAsync(m => m.UserId == customer2User.Id);
+                
+                if (existingMap == null)
                 {
-                    customer = new Customer 
-                    { 
-                        CustomerId = "ANATR", 
-                        CompanyName = "Ana Trujillo Emparedados y helados", 
-                        ContactName = "Ana Trujillo", 
-                        City = "México D.F.", 
-                        Country = "Mexico" 
+                    // Ensure customer exists first
+                    var customer = await _context.Customers.FindAsync("ANATR");
+                    if (customer == null)
+                    {
+                        customer = new Customer 
+                        { 
+                            CustomerId = "ANATR", 
+                            CompanyName = "Ana Trujillo Emparedados y helados", 
+                            ContactName = "Ana Trujillo", 
+                            City = "México D.F.", 
+                            Country = "Mexico" 
+                        };
+                        _context.Customers.Add(customer);
+                        await _context.SaveChangesAsync();
+                    }
+
+                    var map = new PortalUserCustomerMap
+                    {
+                        UserId = customer2User.Id,
+                        CustomerId = "ANATR",
+                        CreatedAt = DateTime.UtcNow
                     };
-                    _context.Customers.Add(customer);
+                    _context.PortalUserCustomerMaps.Add(map);
                     await _context.SaveChangesAsync();
                 }
-
-                var map = new PortalUserCustomerMap
-                {
-                    UserId = customer2User.Id,
-                    CustomerId = "ANATR",
-                    CreatedAt = DateTime.UtcNow
-                };
-                _context.PortalUserCustomerMaps.Add(map);
-                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error creating customer mapping for customer2@example.com. Skipping.");
             }
         }
     }
@@ -270,8 +382,16 @@ public class DbInitializer
     private async Task SeedNorthwindDataAsync()
     {
         // Only seed if database is empty
-        if (await _context.Customers.AnyAsync())
-            return;
+        try
+        {
+            if (await _context.Customers.AnyAsync())
+                return;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error checking if customers exist. Attempting to seed data anyway.");
+            // Continue with seeding if the check fails
+        }
 
         // Seed minimal Northwind data for demo
         // Note: In production, you would load from the actual Northwind database
@@ -284,50 +404,59 @@ public class DbInitializer
             new Customer { CustomerId = "ANATR", CompanyName = "Ana Trujillo Emparedados y helados", ContactName = "Ana Trujillo", City = "México D.F.", Country = "Mexico" },
             new Customer { CustomerId = "ANTON", CompanyName = "Antonio Moreno Taquería", ContactName = "Antonio Moreno", City = "México D.F.", Country = "Mexico" }
         };
-        _context.Customers.AddRange(customers);
-
-        // Create sample categories
-        var categories = new[]
+        try
         {
-            new Category { CategoryName = "Beverages", Description = "Soft drinks, coffees, teas, beers, and ales" },
-            new Category { CategoryName = "Condiments", Description = "Sweet and savory sauces, relishes, spreads, and seasonings" },
-            new Category { CategoryName = "Confections", Description = "Desserts, candies, and sweet breads" },
-            new Category { CategoryName = "Dairy Products", Description = "Cheeses" },
-            new Category { CategoryName = "Grains/Cereals", Description = "Breads, crackers, pasta, and cereal" }
-        };
-        _context.Categories.AddRange(categories);
+            _context.Customers.AddRange(customers);
 
-        // Create sample suppliers
-        var suppliers = new[]
+            // Create sample categories
+            var categories = new[]
+            {
+                new Category { CategoryName = "Beverages", Description = "Soft drinks, coffees, teas, beers, and ales" },
+                new Category { CategoryName = "Condiments", Description = "Sweet and savory sauces, relishes, spreads, and seasonings" },
+                new Category { CategoryName = "Confections", Description = "Desserts, candies, and sweet breads" },
+                new Category { CategoryName = "Dairy Products", Description = "Cheeses" },
+                new Category { CategoryName = "Grains/Cereals", Description = "Breads, crackers, pasta, and cereal" }
+            };
+            _context.Categories.AddRange(categories);
+
+            // Create sample suppliers
+            var suppliers = new[]
+            {
+                new Supplier { CompanyName = "Exotic Liquids", ContactName = "Charlotte Cooper", City = "London", Country = "UK" },
+                new Supplier { CompanyName = "New Orleans Cajun Delights", ContactName = "Shelley Burke", City = "New Orleans", Country = "USA" },
+                new Supplier { CompanyName = "Grandma Kelly's Homestead", ContactName = "Regina Murphy", City = "Ann Arbor", Country = "USA" }
+            };
+            _context.Suppliers.AddRange(suppliers);
+
+            // Create sample shippers
+            var shippers = new[]
+            {
+                new Shipper { CompanyName = "Speedy Express", Phone = "(503) 555-9831" },
+                new Shipper { CompanyName = "United Package", Phone = "(503) 555-3199" },
+                new Shipper { CompanyName = "Federal Shipping", Phone = "(503) 555-9931" }
+            };
+            _context.Shippers.AddRange(shippers);
+
+            await _context.SaveChangesAsync();
+
+            // Create sample products
+            var products = new[]
+            {
+                new Product { ProductName = "Chai", CategoryId = 1, SupplierId = 1, UnitPrice = 18.00m, UnitsInStock = 39, Discontinued = false },
+                new Product { ProductName = "Chang", CategoryId = 1, SupplierId = 1, UnitPrice = 19.00m, UnitsInStock = 17, Discontinued = false },
+                new Product { ProductName = "Aniseed Syrup", CategoryId = 2, SupplierId = 1, UnitPrice = 10.00m, UnitsInStock = 13, Discontinued = false },
+                new Product { ProductName = "Chef Anton's Cajun Seasoning", CategoryId = 2, SupplierId = 2, UnitPrice = 22.00m, UnitsInStock = 53, Discontinued = false },
+                new Product { ProductName = "Grandma's Boysenberry Spread", CategoryId = 2, SupplierId = 3, UnitPrice = 25.00m, UnitsInStock = 120, Discontinued = false }
+            };
+            _context.Products.AddRange(products);
+
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("Northwind sample data seeded successfully.");
+        }
+        catch (Exception ex)
         {
-            new Supplier { CompanyName = "Exotic Liquids", ContactName = "Charlotte Cooper", City = "London", Country = "UK" },
-            new Supplier { CompanyName = "New Orleans Cajun Delights", ContactName = "Shelley Burke", City = "New Orleans", Country = "USA" },
-            new Supplier { CompanyName = "Grandma Kelly's Homestead", ContactName = "Regina Murphy", City = "Ann Arbor", Country = "USA" }
-        };
-        _context.Suppliers.AddRange(suppliers);
-
-        // Create sample shippers
-        var shippers = new[]
-        {
-            new Shipper { CompanyName = "Speedy Express", Phone = "(503) 555-9831" },
-            new Shipper { CompanyName = "United Package", Phone = "(503) 555-3199" },
-            new Shipper { CompanyName = "Federal Shipping", Phone = "(503) 555-9931" }
-        };
-        _context.Shippers.AddRange(shippers);
-
-        await _context.SaveChangesAsync();
-
-        // Create sample products
-        var products = new[]
-        {
-            new Product { ProductName = "Chai", CategoryId = 1, SupplierId = 1, UnitPrice = 18.00m, UnitsInStock = 39, Discontinued = false },
-            new Product { ProductName = "Chang", CategoryId = 1, SupplierId = 1, UnitPrice = 19.00m, UnitsInStock = 17, Discontinued = false },
-            new Product { ProductName = "Aniseed Syrup", CategoryId = 2, SupplierId = 1, UnitPrice = 10.00m, UnitsInStock = 13, Discontinued = false },
-            new Product { ProductName = "Chef Anton's Cajun Seasoning", CategoryId = 2, SupplierId = 2, UnitPrice = 22.00m, UnitsInStock = 53, Discontinued = false },
-            new Product { ProductName = "Grandma's Boysenberry Spread", CategoryId = 2, SupplierId = 3, UnitPrice = 25.00m, UnitsInStock = 120, Discontinued = false }
-        };
-        _context.Products.AddRange(products);
-
-        await _context.SaveChangesAsync();
+            _logger.LogError(ex, "Error seeding Northwind data. Some data may be missing.");
+            // Don't throw - allow application to continue even if seeding fails
+        }
     }
 }
