@@ -7,6 +7,7 @@ using Northwind.Portal.Domain.Services;
 using Northwind.Portal.Web.Models;
 using Bipins.AI;
 using System.Security.Claims;
+using Pomelo.EntityFrameworkCore.MySql;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,21 +38,35 @@ var connectionString = builder.Configuration.GetConnectionString("NorthwindsDb")
     ?? throw new InvalidOperationException("Connection string 'NorthwindsDb' not found. Please set it in User Secrets (Development) or appsettings.json (Production).");
 
 // Database setup
-if (databaseOptions.DbProvider == "Sqlite")
+switch (databaseOptions.DbProvider)
 {
-    builder.Services.AddDbContext<NorthwindDbContext>(options =>
-        options.UseSqlite(connectionString));
+    case "Sqlite":
+        builder.Services.AddDbContext<NorthwindDbContext>(options =>
+            options.UseSqlite(connectionString));
+        
+        builder.Services.AddDbContext<ApplicationDbContext>(options =>
+            options.UseSqlite(connectionString));
+        break;
     
-    builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseSqlite(connectionString));
-}
-else
-{
-    builder.Services.AddDbContext<NorthwindDbContext>(options =>
-        options.UseSqlServer(connectionString));
+    case "MariaDB":
+        // Use MariaDB 10.11 as the default server version
+        // You can adjust this version to match your MariaDB server version
+        var serverVersion = new MariaDbServerVersion(new Version(10, 11, 0));
+        builder.Services.AddDbContext<NorthwindDbContext>(options =>
+            options.UseMySql(connectionString, serverVersion));
+        
+        builder.Services.AddDbContext<ApplicationDbContext>(options =>
+            options.UseMySql(connectionString, serverVersion));
+        break;
     
-    builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseSqlServer(connectionString));
+    case "SqlServer":
+    default:
+        builder.Services.AddDbContext<NorthwindDbContext>(options =>
+            options.UseSqlServer(connectionString));
+        
+        builder.Services.AddDbContext<ApplicationDbContext>(options =>
+            options.UseSqlServer(connectionString));
+        break;
 }
 
 // Identity

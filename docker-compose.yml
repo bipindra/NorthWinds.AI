@@ -13,10 +13,15 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
+      # For SQL Server (default):
       - ConnectionStrings__NorthwindsDb=Server=sqlserver;Database=NorthwindsDb;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
       - DatabaseOptions__DbProvider=SqlServer
+      # For MariaDB (uncomment and comment out SQL Server lines above):
+      # - ConnectionStrings__NorthwindsDb=Server=mariadb;Port=3306;Database=NorthwindsDb;User=root;Password=YourStrong@Passw0rd;
+      # - DatabaseOptions__DbProvider=MariaDB
     depends_on:
       - sqlserver
+      # - mariadb  # Uncomment if using MariaDB
     networks:
       - northwind-network
 
@@ -34,9 +39,24 @@ services:
     networks:
       - northwind-network
 
+  # Uncomment to use MariaDB instead of SQL Server:
+  # mariadb:
+  #   image: mariadb:11.3
+  #   container_name: northwind-mariadb
+  #   environment:
+  #     - MYSQL_ROOT_PASSWORD=YourStrong@Passw0rd
+  #     - MYSQL_DATABASE=NorthwindsDb
+  #   ports:
+  #     - "3306:3306"
+  #   volumes:
+  #     - mariadb-data:/var/lib/mysql
+  #   networks:
+  #     - northwind-network
+
 networks:
   northwind-network:
     driver: bridge
 
 volumes:
   sqlserver-data:
+  # mariadb-data:  # Uncomment if using MariaDB

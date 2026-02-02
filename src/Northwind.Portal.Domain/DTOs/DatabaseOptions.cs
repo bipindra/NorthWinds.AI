@@ -3,7 +3,7 @@ namespace Northwind.Portal.Domain.DTOs;
 public class DatabaseOptions
 {
     public const string SectionName = "DatabaseOptions";
-    public string DbProvider { get; set; } = "SqlServer"; // "SqlServer" or "Sqlite"
+    public string DbProvider { get; set; } = "MariaDB"; // "SqlServer", "Sqlite", or "MariaDB"
 }
 
 public class FeatureFlags
