@@ -29,100 +29,106 @@ public class OrderService : IOrderService
 
     public async Task<OrderDto> PlaceOrderAsync(CheckoutDto checkout, string userId)
     {
-        using var transaction = await _context.Database.BeginTransactionAsync();
-        try
+        // Use execution strategy to support retry logic with transactions
+        var strategy = _context.Database.CreateExecutionStrategy();
+        
+        return await strategy.ExecuteAsync(async () =>
         {
-            // Get cart
-            var cart = await _cartRepository.GetCartByUserIdAsync(userId);
-            if (cart == null || !cart.CartLines.Any())
-                throw new InvalidOperationException("Cart is empty");
-
-            // Get customer ID from tenant context (would be injected, but for now we'll get it from the user map)
-            var userMap = await _context.PortalUserCustomerMaps
-                .FirstOrDefaultAsync(m => m.UserId == userId);
-            
-            if (userMap == null)
-                throw new InvalidOperationException("User is not mapped to a customer");
-
-            // Validate products and get current prices
-            var orderDetails = new List<OrderDetail>();
-            foreach (var cartLine in cart.CartLines)
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                var product = await _productRepository.GetProductByIdAsync(cartLine.ProductId);
-                if (product == null)
-                    throw new InvalidOperationException($"Product {cartLine.ProductId} not found");
+                // Get cart
+                var cart = await _cartRepository.GetCartByUserIdAsync(userId);
+                if (cart == null || !cart.CartLines.Any())
+                    throw new InvalidOperationException("Cart is empty");
 
-                if (product.Discontinued)
-                    throw new InvalidOperationException($"Product {product.ProductName} is discontinued");
+                // Get customer ID from tenant context (would be injected, but for now we'll get it from the user map)
+                var userMap = await _context.PortalUserCustomerMaps
+                    .FirstOrDefaultAsync(m => m.UserId == userId);
+                
+                if (userMap == null)
+                    throw new InvalidOperationException("User is not mapped to a customer");
 
-                if (product.UnitPrice == null)
-                    throw new InvalidOperationException($"Product {product.ProductName} has no price");
-
-                orderDetails.Add(new OrderDetail
+                // Validate products and get current prices
+                var orderDetails = new List<OrderDetail>();
+                foreach (var cartLine in cart.CartLines)
                 {
-                    ProductId = cartLine.ProductId,
-                    UnitPrice = product.UnitPrice.Value,
-                    Quantity = cartLine.Quantity,
-                    Discount = 0
-                });
-            }
+                    var product = await _productRepository.GetProductByIdAsync(cartLine.ProductId);
+                    if (product == null)
+                        throw new InvalidOperationException($"Product {cartLine.ProductId} not found");
 
-            // Create order
-            var order = new Order
-            {
-                CustomerId = userMap.CustomerId,
-                OrderDate = DateTime.UtcNow,
-                RequiredDate = DateTime.UtcNow.AddDays(7),
-                ShipName = checkout.ShipName,
-                ShipAddress = checkout.ShipAddress,
-                ShipCity = checkout.ShipCity,
-                ShipRegion = checkout.ShipRegion,
-                ShipPostalCode = checkout.ShipPostalCode,
-                ShipCountry = checkout.ShipCountry,
-                OrderDetails = orderDetails
-            };
+                    if (product.Discontinued)
+                        throw new InvalidOperationException($"Product {product.ProductName} is discontinued");
 
-            order = await _orderRepository.CreateOrderAsync(order);
+                    if (product.UnitPrice == null)
+                        throw new InvalidOperationException($"Product {product.ProductName} has no price");
 
-            // Create order meta
-            if (!string.IsNullOrWhiteSpace(checkout.PoNumber) || !string.IsNullOrWhiteSpace(checkout.Notes))
-            {
-                var orderMeta = new OrderMeta
+                    orderDetails.Add(new OrderDetail
+                    {
+                        ProductId = cartLine.ProductId,
+                        UnitPrice = product.UnitPrice.Value,
+                        Quantity = cartLine.Quantity,
+                        Discount = 0
+                    });
+                }
+
+                // Create order
+                var order = new Order
+                {
+                    CustomerId = userMap.CustomerId,
+                    OrderDate = DateTime.UtcNow,
+                    RequiredDate = DateTime.UtcNow.AddDays(7),
+                    ShipName = checkout.ShipName,
+                    ShipAddress = checkout.ShipAddress,
+                    ShipCity = checkout.ShipCity,
+                    ShipRegion = checkout.ShipRegion,
+                    ShipPostalCode = checkout.ShipPostalCode,
+                    ShipCountry = checkout.ShipCountry,
+                    OrderDetails = orderDetails
+                };
+
+                order = await _orderRepository.CreateOrderAsync(order);
+
+                // Create order meta
+                if (!string.IsNullOrWhiteSpace(checkout.PoNumber) || !string.IsNullOrWhiteSpace(checkout.Notes))
+                {
+                    var orderMeta = new OrderMeta
+                    {
+                        OrderId = order.OrderId,
+                        PoNumber = checkout.PoNumber,
+                        InternalNotes = checkout.Notes
+                    };
+                    _context.OrderMetas.Add(orderMeta);
+                }
+
+                // Create initial status history
+                var statusHistory = new OrderStatusHistory
                 {
                     OrderId = order.OrderId,
-                    PoNumber = checkout.PoNumber,
-                    InternalNotes = checkout.Notes
+                    Status = OrderPortalStatus.Submitted,
+                    ChangedAt = DateTime.UtcNow,
+                    ChangedByUserId = userId,
+                    Comment = "Order submitted"
                 };
-                _context.OrderMetas.Add(orderMeta);
+                _context.OrderStatusHistories.Add(statusHistory);
+
+                await _context.SaveChangesAsync();
+
+                // Clear cart
+                await _cartRepository.DeleteCartAsync(cart.Id);
+
+                await transaction.CommitAsync();
+
+                // Return order DTO
+                return await GetOrderByIdAsync(order.OrderId, userMap.CustomerId) ?? 
+                    throw new InvalidOperationException("Failed to retrieve created order");
             }
-
-            // Create initial status history
-            var statusHistory = new OrderStatusHistory
+            catch
             {
-                OrderId = order.OrderId,
-                Status = OrderPortalStatus.Submitted,
-                ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = userId,
-                Comment = "Order submitted"
-            };
-            _context.OrderStatusHistories.Add(statusHistory);
-
-            await _context.SaveChangesAsync();
-
-            // Clear cart
-            await _cartRepository.DeleteCartAsync(cart.Id);
-
-            await transaction.CommitAsync();
-
-            // Return order DTO
-            return await GetOrderByIdAsync(order.OrderId, userMap.CustomerId) ?? 
-                throw new InvalidOperationException("Failed to retrieve created order");
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+                await transaction.RollbackAsync();
+                throw;
+            }
+        });
     }
 
     public async Task<bool> CancelOrderAsync(int orderId, string userId, string? reason = null)
