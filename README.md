@@ -214,6 +214,353 @@ docker run -d -p 8080:8080 \
 
 **Image registry:** `ghcr.io/bipindra/northwinds.ai`
 
+## ☸️ Kubernetes (Local Deployment)
+
+Deploy the Northwind Portal to a local Kubernetes cluster. The manifests are split into three layers — **base**, **infrastructure**, and **app** — so you can deploy the full stack locally or deploy only the app against existing SQL Server and Qdrant instances.
+
+### Prerequisites
+
+- **Docker Desktop** with Kubernetes enabled, **or** [minikube](https://minikube.sigs.k8s.io/)
+- **kubectl** CLI installed and configured
+- **Docker** CLI for building images
+
+### Directory Layout
+
+```
+k8s/
+├── base/                            # Shared cluster resources
+│   └── namespace.yaml               # Kubernetes namespace
+├── infrastructure/                   # Deployable independently; skip when using external services
+│   ├── secrets.yaml                 # SQL Server credentials
+│   ├── sqlserver.yaml               # SQL Server Deployment + Service + PVC
+│   └── qdrant.yaml                  # Qdrant Deployment + Service + PVC
+├── app/                              # Deployable independently against any SQL Server + Qdrant
+│   ├── secrets.yaml                 # Application connection string and API keys
+│   ├── configmap.yaml               # Application environment configuration
+│   └── deployment.yaml             # Application Deployment + NodePort Service
+├── deploy.ps1                        # One-click deploy (PowerShell)
+├── deploy.sh                         # One-click deploy (Bash)
+├── teardown.ps1                      # Teardown (PowerShell)
+└── teardown.sh                       # Teardown (Bash)
+```
+
+---
+
+### Manifest Reference
+
+#### 1. `k8s/base/namespace.yaml` — Namespace
+
+Creates the `northwind` namespace that all other resources belong to. **This must be applied first.**
+
+| Field | Value |
+|-------|-------|
+| **Kind** | `Namespace` |
+| **Name** | `northwind` |
+
+```bash
+kubectl apply -f k8s/base/namespace.yaml
+```
+
+---
+
+#### 2. `k8s/infrastructure/secrets.yaml` — Infrastructure Secrets
+
+Stores credentials used by the SQL Server container. Only needed when deploying infrastructure locally.
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `SA_PASSWORD` | SQL Server SA password | `YourStrong@Passw0rd` |
+| `ConnectionStrings__NorthwindsDb` | Connection string using the in-cluster `sqlserver` service | Points to `Server=sqlserver` |
+| `LLMOptions__OpenAI__ApiKey` | *(commented out)* OpenAI API key for AI features | — |
+
+**Customize before applying:**
+- Change `SA_PASSWORD` and update the matching password in `ConnectionStrings__NorthwindsDb`.
+- Optionally uncomment and set `LLMOptions__OpenAI__ApiKey`.
+
+```bash
+kubectl apply -f k8s/infrastructure/secrets.yaml
+```
+
+---
+
+#### 3. `k8s/infrastructure/sqlserver.yaml` — SQL Server
+
+Deploys SQL Server 2022 Developer Edition with persistent storage. Contains three Kubernetes resources:
+
+| Resource | Kind | Name | Details |
+|----------|------|------|---------|
+| Database server | `Deployment` | `sqlserver` | 1 replica, image `mcr.microsoft.com/mssql/server:2022-latest`, port `1433` |
+| Internal endpoint | `Service` (ClusterIP) | `sqlserver` | Accessible at `sqlserver:1433` within the cluster |
+| Data volume | `PersistentVolumeClaim` | `sqlserver-pvc` | 2 Gi, `ReadWriteOnce`, mounted at `/var/opt/mssql` |
+
+**Resource limits:** 250m–1000m CPU, 512Mi–2Gi memory.
+
+**Depends on:** `k8s/infrastructure/secrets.yaml` (reads `SA_PASSWORD` via `secretKeyRef`).
+
+```bash
+kubectl apply -f k8s/infrastructure/sqlserver.yaml
+```
+
+**Verify:**
+```bash
+kubectl -n northwind wait --for=condition=ready pod -l app=sqlserver --timeout=120s
+kubectl -n northwind logs -f deployment/sqlserver
+```
+
+---
+
+#### 4. `k8s/infrastructure/qdrant.yaml` — Qdrant Vector Database
+
+Deploys the Qdrant vector database for RAG-based semantic product search. Contains three Kubernetes resources:
+
+| Resource | Kind | Name | Details |
+|----------|------|------|---------|
+| Vector DB | `Deployment` | `qdrant` | 1 replica, image `qdrant/qdrant:latest`, ports `6333` (HTTP) and `6334` (gRPC) |
+| Internal endpoint | `Service` (ClusterIP) | `qdrant` | Accessible at `qdrant:6333` / `qdrant:6334` within the cluster |
+| Data volume | `PersistentVolumeClaim` | `qdrant-pvc` | 1 Gi, `ReadWriteOnce`, mounted at `/qdrant/storage` |
+
+**Resource limits:** 100m–500m CPU, 256Mi–1Gi memory.
+
+**No dependencies** — this manifest is self-contained.
+
+```bash
+kubectl apply -f k8s/infrastructure/qdrant.yaml
+```
+
+**Verify:**
+```bash
+kubectl -n northwind wait --for=condition=ready pod -l app=qdrant --timeout=60s
+kubectl -n northwind logs -f deployment/qdrant
+```
+
+---
+
+#### 5. `k8s/app/secrets.yaml` — Application Secrets
+
+Stores sensitive application configuration injected as environment variables into the app pod.
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `ConnectionStrings__NorthwindsDb` | SQL Server connection string | Points to in-cluster `sqlserver` service |
+| `LLMOptions__OpenAI__ApiKey` | *(commented out)* OpenAI API key | — |
+
+**Customize before applying:**
+- **Using local infrastructure:** The default connection string (`Server=sqlserver;...`) works as-is.
+- **Using external SQL Server:** Replace the connection string with your external server's host, credentials, and database name.
+- **AI features:** Uncomment `LLMOptions__OpenAI__ApiKey` and set your key.
+
+```bash
+kubectl apply -f k8s/app/secrets.yaml
+```
+
+---
+
+#### 6. `k8s/app/configmap.yaml` — Application Configuration
+
+Non-sensitive application settings injected as environment variables into the app pod.
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `ASPNETCORE_ENVIRONMENT` | ASP.NET Core environment | `Development` |
+| `ASPNETCORE_URLS` | Kestrel listen URL | `http://+:8080` |
+| `DatabaseOptions__DbProvider` | Database provider | `SqlServer` |
+| `VectorDbOptions__Provider` | Vector DB provider | `Qdrant` |
+| `VectorDbOptions__Qdrant__Endpoint` | Qdrant HTTP endpoint | `http://qdrant:6333` (in-cluster) |
+| `VectorDbOptions__Qdrant__CollectionName` | Qdrant collection name | `northwind_portal` |
+| `VectorDbOptions__Qdrant__CreateCollectionIfMissing` | Auto-create collection | `true` |
+
+**Customize before applying:**
+- **Using local infrastructure:** Defaults work as-is.
+- **Using external Qdrant:** Update `VectorDbOptions__Qdrant__Endpoint` to your external host (e.g. `http://your-qdrant-host:6333`).
+- **Production:** Change `ASPNETCORE_ENVIRONMENT` to `Production`.
+
+```bash
+kubectl apply -f k8s/app/configmap.yaml
+```
+
+---
+
+#### 7. `k8s/app/deployment.yaml` — Application Deployment & Service
+
+Deploys the Northwind Portal web application. Contains two Kubernetes resources:
+
+| Resource | Kind | Name | Details |
+|----------|------|------|---------|
+| Web app | `Deployment` | `northwind-portal` | 1 replica, image `northwind-portal:latest`, port `8080` |
+| External access | `Service` (NodePort) | `northwind-portal` | Maps port `8080` → NodePort `30080` |
+
+**Deployment details:**
+- **Image pull policy:** `Never` — expects a locally built Docker image (not pulled from a registry).
+- **Environment:** All variables injected from `northwind-config` (ConfigMap) and `northwind-app-secrets` (Secret) via `envFrom`.
+- **Readiness probe:** `GET /health` on port `8080`, starts after 15s, checks every 10s.
+- **Liveness probe:** `GET /health` on port `8080`, starts after 30s, checks every 15s.
+- **Resource limits:** 100m–500m CPU, 256Mi–512Mi memory.
+
+**Depends on:**
+- `k8s/app/configmap.yaml` (referenced as `northwind-config`)
+- `k8s/app/secrets.yaml` (referenced as `northwind-app-secrets`)
+- A locally built Docker image named `northwind-portal:latest`
+
+**Build the image first:**
+```bash
+docker build -t northwind-portal:latest .
+
+# If using minikube, also load the image:
+minikube image load northwind-portal:latest
+```
+
+**Apply:**
+```bash
+kubectl apply -f k8s/app/deployment.yaml
+```
+
+**Verify:**
+```bash
+kubectl -n northwind wait --for=condition=ready pod -l app=northwind-portal --timeout=180s
+kubectl -n northwind logs -f deployment/northwind-portal
+```
+
+---
+
+### Deployment Scenarios
+
+#### Full Stack (all manifests)
+
+Deploy everything — SQL Server, Qdrant, and the app — to a clean local cluster.
+
+**Apply order:**
+```bash
+kubectl apply -f k8s/base/namespace.yaml
+kubectl apply -f k8s/infrastructure/secrets.yaml
+kubectl apply -f k8s/infrastructure/sqlserver.yaml
+kubectl apply -f k8s/infrastructure/qdrant.yaml
+kubectl apply -f k8s/app/secrets.yaml
+kubectl apply -f k8s/app/configmap.yaml
+kubectl apply -f k8s/app/deployment.yaml
+```
+
+**Or use the deploy script:**
+
+```powershell
+# PowerShell
+.\k8s\deploy.ps1
+```
+```bash
+# Bash
+chmod +x k8s/deploy.sh
+./k8s/deploy.sh
+```
+
+The script automatically builds the Docker image, loads it into minikube (if detected), applies all manifests in order, and waits for pods to become ready.
+
+#### App Only (existing SQL Server & Qdrant)
+
+When SQL Server and Qdrant already exist (managed services, shared cluster, etc.), skip the infrastructure manifests entirely.
+
+1. Edit `k8s/app/secrets.yaml` — set `ConnectionStrings__NorthwindsDb` to your external SQL Server.
+2. Edit `k8s/app/configmap.yaml` — set `VectorDbOptions__Qdrant__Endpoint` to your external Qdrant.
+3. Apply:
+
+```bash
+kubectl apply -f k8s/base/namespace.yaml
+kubectl apply -f k8s/app/secrets.yaml
+kubectl apply -f k8s/app/configmap.yaml
+kubectl apply -f k8s/app/deployment.yaml
+```
+
+**Or use the deploy script:**
+
+```powershell
+.\k8s\deploy.ps1 -AppOnly
+```
+```bash
+./k8s/deploy.sh --app-only
+```
+
+#### Infrastructure Only
+
+Prepare a shared SQL Server + Qdrant environment without deploying the app (e.g. for other teams to use).
+
+```bash
+kubectl apply -f k8s/base/namespace.yaml
+kubectl apply -f k8s/infrastructure/secrets.yaml
+kubectl apply -f k8s/infrastructure/sqlserver.yaml
+kubectl apply -f k8s/infrastructure/qdrant.yaml
+```
+
+**Or use the deploy script:**
+
+```powershell
+.\k8s\deploy.ps1 -InfraOnly
+```
+```bash
+./k8s/deploy.sh --infra-only
+```
+
+---
+
+### Access the Application
+
+| Method | URL |
+|--------|-----|
+| **Docker Desktop Kubernetes** | http://localhost:30080 |
+| **minikube** | Run `minikube service northwind-portal -n northwind` |
+
+---
+
+### Useful Commands
+
+```bash
+# View app logs
+kubectl -n northwind logs -f deployment/northwind-portal
+
+# View SQL Server logs
+kubectl -n northwind logs -f deployment/sqlserver
+
+# View Qdrant logs
+kubectl -n northwind logs -f deployment/qdrant
+
+# Open a shell in the app container
+kubectl -n northwind exec -it deployment/northwind-portal -- /bin/bash
+
+# Scale the app (infrastructure should remain at 1 replica)
+kubectl -n northwind scale deployment northwind-portal --replicas=3
+
+# Restart the app after config/secret changes
+kubectl -n northwind rollout restart deployment northwind-portal
+
+# Check pod events (useful for debugging startup issues)
+kubectl -n northwind describe pod -l app=northwind-portal
+
+# View all resources in the namespace
+kubectl -n northwind get all
+```
+
+---
+
+### Teardown
+
+**PowerShell:**
+```powershell
+.\k8s\teardown.ps1              # Remove everything
+.\k8s\teardown.ps1 -AppOnly     # Remove only the app, keep infrastructure
+.\k8s\teardown.ps1 -InfraOnly   # Remove only infrastructure, keep app
+```
+
+**Bash:**
+```bash
+./k8s/teardown.sh               # Remove everything
+./k8s/teardown.sh --app-only    # Remove only the app, keep infrastructure
+./k8s/teardown.sh --infra-only  # Remove only infrastructure, keep app
+```
+
+**Manual (remove everything at once):**
+```bash
+kubectl delete namespace northwind
+```
+
+> **Note:** Deleting the namespace removes all resources including persistent volume claims. Database and vector data will be lost.
+
 ## License
 
 Demonstration project based on the Northwind database schema.

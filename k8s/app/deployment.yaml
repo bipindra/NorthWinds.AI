@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: northwind-portal
+  namespace: northwind
+  labels:
+    app: northwind-portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: northwind-portal
+  template:
+    metadata:
+      labels:
+        app: northwind-portal
+    spec:
+      containers:
+        - name: northwind-portal
+          image: northwind-portal:latest
+          imagePullPolicy: Never  # Use local image built with Docker
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: northwind-config
+            - secretRef:
+                name: northwind-app-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: northwind-portal
+  namespace: northwind
+spec:
+  selector:
+    app: northwind-portal
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080
+  type: NodePort

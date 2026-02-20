@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: northwind-config
+  namespace: northwind
+data:
+  ASPNETCORE_ENVIRONMENT: "Development"
+  ASPNETCORE_URLS: "http://+:8080"
+  DatabaseOptions__DbProvider: "SqlServer"
+  VectorDbOptions__Provider: "Qdrant"
+  # When deploying with local infrastructure, use the in-cluster service name:
+  VectorDbOptions__Qdrant__Endpoint: "http://qdrant:6333"
+  # When deploying against external Qdrant, update the endpoint:
+  # VectorDbOptions__Qdrant__Endpoint: "http://your-external-qdrant-host:6333"
+  VectorDbOptions__Qdrant__CollectionName: "northwind_portal"
+  VectorDbOptions__Qdrant__CreateCollectionIfMissing: "true"
