@@ -303,6 +303,6 @@ public class NorthwindDbContext : DbContext
 
         // Apply MySQL type conversions AFTER all entity configurations
         // This ensures SQL Server types are converted to MySQL equivalents
-        MySqlTypeConverter.ApplyMySqlTypeConversions(modelBuilder);
+        //MySqlTypeConverter.ApplyMySqlTypeConversions(modelBuilder);
     }
 }

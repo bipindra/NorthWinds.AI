@@ -45,7 +45,7 @@ public class DbInitializer
                 await _identityContext.Database.EnsureCreatedAsync();
             }
         }
-        catch (InvalidOperationException)
+        catch (Exception)
         {
             // If there are pending model changes (no migrations), use EnsureCreated
             if (!await _identityContext.Database.CanConnectAsync())
